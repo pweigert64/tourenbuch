@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Alpine Photo Map v27 - Google Sheets Sync</title>
+    
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet-gpx/1.7.0/gpx.min.js"></script>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="config.js"></script>
+    
+    <style>
+        html, body, #map-container { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; font-family: sans-serif; }
+        #map { width: 100%; height: 100vh; z-index: 1; background: #e5e7eb; }
+        
+        /* Floating UI */
+        #floating-controls { position: absolute; top: 70px; right: 15px; z-index: 9999; display: flex; flex-direction: column; align-items: flex-end; gap: 12px; }
+        #filter-controls-panel { background: white; padding: 15px; border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.2); min-width: 240px; display: none; flex-direction: column; gap: 12px; border: 1px solid #e5e7eb; }
+        #filter-toggle { background: #4f46e5; color: white; width: 50px; height: 50px; border-radius: 50%; cursor: pointer; border: 3px solid white; font-size: 1.5rem; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 12px rgba(0,0,0,0.3); }
+
+        /* Filter Buttons */
+        .filter-button { padding: 8px; font-size: 0.75rem; font-weight: 700; border-radius: 8px; cursor: pointer; border: 1px solid #d1d5db; text-align: center; width: 100%; transition: all 0.2s; }
+        .filter-button-active { background: #4f46e5; color: white; border-color: #4f46e5; }
+        .filter-button-inactive { background: #f3f4f6; color: #6b7280; }
+
+        /* Custom Markers */
+        .emoji-marker-outer { width: 26px!important; height: 26px!important; border-radius: 50%; border: 2px solid white; box-shadow: 0 2px 5px rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center; }
+        .marker-ski { background: #4f46e5; } 
+        .marker-hike { background: #b54708; } 
+        .marker-climb { background: #dc2626; } 
+        .marker-bike { background: #065f46; } 
+        .marker-bike-hike { background: #f97316; }
+        .emoji-marker-inner { font-size: 11pt; background: white; border-radius: 50%; width: 18px; height: 18px; display: flex; align-items: center; justify-content: center; }
+
+        /* Popup Styling */
+        .photo-popup-img { width: 100%; border-radius: 0.4rem; margin-bottom: 0.6rem; object-fit: cover; height: 120px; display: block; }
+        .btn-photos-custom { background-color: #1e1b4b !important; color: #ffffff !important; display: flex !important; align-items: center; justify-content: center; gap: 6px; text-decoration: none !important; border-radius: 4px; }
+        .btn-track-custom { font-size: 10px; font-weight: 700; }
+        .track-label { background: rgba(255, 255, 255, 0.95); border: 2px solid #ef4444; border-radius: 4px; padding: 4px 8px; font-size: 11px; font-weight: 800; color: #ef4444; pointer-events: none; white-space: nowrap; box-shadow: 0 2px 4px rgba(0,0,0,0.2); }
+    </style>
+</head>
+<body>
+
+<div id="map-container">
+    <div id="floating-controls">
+        <button id="filter-toggle" onclick="toggleMenu(event)">⚙️</button>
+        <div id="filter-controls-panel">
+            <div class="bg-indigo-50 p-3 rounded-lg flex flex-col gap-2 border border-indigo-100 text-[10px] font-bold">
+                <div class="flex justify-between"><span>Map Switch Zoom</span><span id="threshold-display">13</span></div>
+                <input type="range" id="threshold-slider" min="10" max="16" value="13" step="0.5" class="w-full">
+            </div>
+            <select id="year-select" class="text-sm p-2 border rounded bg-gray-50 font-bold"></select>
+            <div class="grid grid-cols-2 gap-2">
+                <button class="filter-button filter-button-active" data-activity="ski">❄️ Ski</button>
+                <button class="filter-button filter-button-active" data-activity="hike">🥾 Hike</button>
+                <button class="filter-button filter-button-active" data-activity="climb">⛰️ Climb</button>
+                <button class="filter-button filter-button-active" data-activity="bike">🚴 Bike</button>
+                <button class="filter-button filter-button-active col-span-2" data-activity="bike+hike">🚵 Bike + Hike</button>
+            </div>
+            <div class="border-t pt-3 flex flex-col gap-2">
+                <button id="hike-layer-btn" class="filter-button filter-button-inactive text-[10px]">🏔️ HIKING NETWORK</button>
+                <button id="bike-layer-btn" class="filter-button filter-button-inactive text-[10px]">🚲 MTB NETWORK</button>
+                <button id="clear-tracks-btn" class="filter-button bg-red-600 text-white border-none mt-1" style="display:none;">🗑️ CLEAR TRACKS</button>
+            </div>
+        </div>
+    </div>
+    <div id="map"></div>
+</div>
+
+<script>
+    /** --- CONFIGURATION START --- **/
+	const MAPTILER_KEY = 'ZscPH8pPo7YWg0t6tF5s'; 
+    const SHEETS_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vR1jF7J6Z5u8hbOCka2VFlVSnughkNsAdCfdvigbW4ioJaM1rkMgxxz8FW38Jhq7q32kq23EhFMUOPa/pub?output=csv';
+    const GITHUB_BASE = 'https://raw.githubusercontent.com/pweigert64/tourenbuch/main';
+    /** --- CONFIGURATION END --- **/
+
+    let map, overviewLayer, detailLayer, hikingLayer, cyclingLayer;
+    let photoMarkers = []; 
+    let currentMarkers = [];
+    let loadedTracks = {}; 
+    let activeFilters = { ski: true, hike: true, climb: true, bike: true, 'bike+hike': true };
+    let activeYear = 'All';
+    let isInitialLoad = true;
+    let switchThreshold = 13; 
+
+    // Helper to get external asset paths
+    const getAssetUrl = (fileName, year, type) => {
+        if (!fileName || fileName.trim() === "") return null;
+        if (fileName.startsWith('http')) return fileName;
+        return `${GITHUB_BASE}/${year}/${type}/${fileName}`;
+    };
+
+    window.toggleMenu = (e) => {
+        const panel = document.getElementById('filter-controls-panel');
+        panel.style.display = (panel.style.display === 'flex') ? 'none' : 'flex';
+    };
+
+    // CSV Parser & Fetcher
+    async function initDataFetch() {
+        try {
+            const response = await fetch(SHEETS_CSV_URL);
+            const csvText = await response.text();
+            const lines = csvText.split(/\r?\n/);
+            const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
+
+            photoMarkers = lines.slice(1).filter(l => l.trim() !== "").map(line => {
+				// Robust CSV split: handle quoted commas				  
+				const values = line.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/);
+                const obj = {};
+                headers.forEach((header, i) => {
+                    let val = values[i] ? values[i].replace(/^"|"$/g, '').trim() : "";
+                    if (header === 'lat' || header === 'lon') val = parseFloat(val);
+                    obj[header] = val;
+                });
+                return obj;
+            });
+            initMap();
+        } catch (e) { console.error("CSV Fetch Error:", e); }
+    }
+
+    function initMap() {
+		if (photoMarkers.length === 0) return;									  
+        const startPos = [photoMarkers[0].lat, photoMarkers[0].lon];
+        map = L.map('map', { center: startPos, zoom: 11, zoomControl: false, closePopupOnClick: false });
+        
+        overviewLayer = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', { maxZoom: 17 }).addTo(map);
+        detailLayer = L.tileLayer(`https://api.maptiler.com/maps/outdoor-v4/{z}/{x}/{y}@2x.png?key=${MAPTILER_KEY}`, { tileSize: 512, zoomOffset: -1 });
+        hikingLayer = L.tileLayer('https://tile.waymarkedtrails.org/hiking/{z}/{x}/{y}.png');
+        cyclingLayer = L.tileLayer('https://tile.waymarkedtrails.org/mtb/{z}/{x}/{y}.png');
+
+        const checkTiles = () => {
+            if (map.getZoom() >= switchThreshold) {
+                if (!map.hasLayer(detailLayer)) { detailLayer.addTo(map); map.removeLayer(overviewLayer); }
+            } else {
+                if (!map.hasLayer(overviewLayer)) { overviewLayer.addTo(map); map.removeLayer(detailLayer); }
+            }
+        };
+        map.on('zoomend', checkTiles);
+        L.control.zoom({ position: 'bottomleft' }).addTo(map);
+        
+        setupEvents();
+        populateYearDropdown();
+        renderMarkers();
+    }
+
+    function setupEvents() {
+        const ctrls = document.getElementById('floating-controls');
+        L.DomEvent.disableClickPropagation(ctrls).disableScrollPropagation(ctrls);
+        document.querySelectorAll('[data-activity]').forEach(btn => {
+            btn.onclick = () => {
+                activeFilters[btn.dataset.activity] = !activeFilters[btn.dataset.activity];
+                btn.classList.toggle('filter-button-active', activeFilters[btn.dataset.activity]);
+                renderMarkers();
+            };
+        });
+        document.getElementById('hike-layer-btn').onclick = function() {
+            map.hasLayer(hikingLayer) ? map.removeLayer(hikingLayer) : hikingLayer.addTo(map);
+            this.classList.toggle('filter-button-active');
+        };
+        document.getElementById('bike-layer-btn').onclick = function() {
+            map.hasLayer(cyclingLayer) ? map.removeLayer(cyclingLayer) : cyclingLayer.addTo(map);
+            this.classList.toggle('filter-button-active');
+        };
+        document.getElementById('threshold-slider').oninput = function(e) {
+            switchThreshold = parseFloat(e.target.value);
+            document.getElementById('threshold-display').innerText = switchThreshold;
+        };
+        document.getElementById('clear-tracks-btn').onclick = () => {
+            Object.values(loadedTracks).forEach(t => { map.removeLayer(t.layer); map.removeLayer(t.label); });
+            loadedTracks = {};
+            renderMarkers();
+        };
+    }
+
+    window.loadGpxTrack = function(idx) {
+        const p = photoMarkers[idx];
+        const url = getAssetUrl(p.gpx, p.year, 'gpx');
+        if (loadedTracks[idx]) {
+            map.removeLayer(loadedTracks[idx].layer);
+            map.removeLayer(loadedTracks[idx].label);
+            delete loadedTracks[idx];
+            renderMarkers();
+        } else {
+            new L.GPX(url, {
+                async: true,
+                marker_options: { startIconUrl: '', endIconUrl: '' },
+                polyline_options: { color: '#ef4444', weight: 4 }
+            }).on('loaded', e => {
+                map.flyToBounds(e.target.getBounds(), { padding: [60, 60] });
+                const label = L.tooltip({ permanent: true, direction: 'center', className: 'track-label' })
+                    .setContent(p.title).setLatLng(e.target.getBounds().getCenter()).addTo(map);
+                loadedTracks[idx] = { layer: e.target, label: label };
+                renderMarkers();
+            }).addTo(map);
+        }
+    };
+
+    function renderMarkers() {
+        let openId = null;
+        currentMarkers.forEach(m => { if(m.getPopup().isOpen()) openId = m._idx; map.removeLayer(m); });
+        currentMarkers = [];
+        document.getElementById('clear-tracks-btn').style.display = Object.keys(loadedTracks).length > 0 ? 'block' : 'none';
+        
+        const iconsMap = { 'ski': '❄️', 'hike': '🥾', 'climb': '⛰️', 'bike': '🚴', 'bike+hike': '🚵' };
+
+        photoMarkers.filter(p => activeFilters[p.activity] && (activeYear === 'All' || p.year.toString() === activeYear))
+        .forEach((p, i) => {
+            const idx = photoMarkers.indexOf(p);
+            const active = !!loadedTracks[idx];
+            const imgUrl = getAssetUrl(p.img, p.year, 'img');
+            const emoji = iconsMap[p.activity] || '📍';
+            const markerClass = p.activity.replace('+', '-');
+
+            const icon = L.divIcon({
+                className: `emoji-marker-outer marker-${markerClass}`,
+                html: `<span class="emoji-marker-inner">${emoji}</span>`,
+                iconSize: [26, 26]
+            });
+
+            const content = `
+                <div class="p-1 min-w-[190px]">
+                    ${imgUrl ? `<img src="${imgUrl}" class="photo-popup-img">` : ''}
+                    <div class="text-[12px] font-bold text-gray-900 mb-3 leading-tight">${p.title}</div>
+                    <div class="flex gap-1.5">
+                        ${p.album ? `<a href="${p.album}" target="_blank" class="flex-1 btn-photos-custom py-2 rounded shadow-sm text-[10px] font-bold">PHOTOS 🔗</a>` : ''}
+                        ${p.gpx ? `<button onclick="loadGpxTrack(${idx})" class="flex-1 ${active ? 'bg-gray-600' : 'bg-emerald-700'} text-white py-2 rounded text-[10px] font-bold shadow-sm">${active ? 'HIDE' : 'TRACK'}</button>` : ''}
+                   </div>
+                </div>`;
+
+            const m = L.marker([p.lat, p.lon], { icon }).bindPopup(content).addTo(map);
+            m._idx = idx;
+            currentMarkers.push(m);
+            if((isInitialLoad && i === 0) || openId === idx) m.openPopup();
+        });
+        isInitialLoad = false;
+    }
+
+    function populateYearDropdown() {
+        const s = document.getElementById('year-select');
+        const yrs = ['All', ...new Set(photoMarkers.map(p => p.year.toString()))].sort().reverse();
+		s.innerHTML = '';
+        yrs.forEach(y => s.add(new Option(y, y)));
+        s.onchange = (e) => { activeYear = e.target.value; renderMarkers(); };
+    }
+
+    document.addEventListener('DOMContentLoaded', initDataFetch);
+</script>
+</body>
+</html>
