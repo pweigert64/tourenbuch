@@ -11,7 +11,7 @@
     <script src="https://cdn.jsdelivr.net/npm/leaflet-polylinedecorator@1.6.0/dist/leaflet.polylinedecorator.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     
-    <style>
+	<style>
         html, body, #map-container { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; }
         #map { width: 100%; height: 100vh; background: #f3f4f6; }
         #floating-controls { position: absolute; top: 70px; right: 15px; z-index: 9999; display: flex; flex-direction: column; align-items: flex-end; gap: 12px; }
@@ -19,12 +19,51 @@
         #filter-toggle { background: #4f46e5; color: white; width: 50px; height: 50px; border-radius: 50%; cursor: pointer; border: 3px solid white; font-size: 1.5rem; display: flex; align-items: center; justify-content: center; }
         .filter-button { padding: 8px; font-size: 0.75rem; font-weight: 700; border-radius: 8px; cursor: pointer; border: 1px solid #d1d5db; text-align: center; width: 100%; }
         .filter-button-active { background: #4f46e5 !important; color: white !important; }
+        
+        /* Marker Styles */
         .emoji-marker-outer { width: 26px!important; height: 26px!important; border-radius: 50%; border: 2px solid white; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 5px rgba(0,0,0,0.2); }
-        .marker-ski { background: #4f46e5; } .marker-hike { background: #b54708; } .marker-climb { background: #dc2626; } .marker-bike { background: #065f46; } .marker-bike-hike { background: #f97316; }
+        .marker-ski { background: #4f46e5; } 
+        .marker-hike { background: #b54708; } 
+        .marker-climb { background: #dc2626; } 
+        .marker-bike { background: #065f46; } 
+        .marker-bike-hike { background: #f97316; }
+        .marker-unknown { background: #6b7280; } /* Grey for unknown/typos */
+        
         .emoji-marker-inner { font-size: 11pt; background: white; border-radius: 50%; width: 18px; height: 18px; display: flex; align-items: center; justify-content: center; }
-        .photo-popup-img { width: 100%; border-radius: 0.4rem; object-fit: cover; height: 120px; }
-        .track-label { background: white; border: 2px solid #ef4444; padding: 4px 8px; font-weight: bold; border-radius: 4px; font-size: 11px; color: #ef4444; }
-    </style>
+        
+        /* Popup & Title Styling */
+        .leaflet-popup-content { width: 220px !important; margin: 12px; }
+        .popup-title { 
+            font-size: 11px; 
+            line-height: 1.3; 
+            margin: 8px 0; 
+            font-weight: bold;
+            display: -webkit-box;
+            -webkit-line-clamp: 2; /* Shows max 2 lines */
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            text-align: center;
+        }
+        .photo-popup-img { width: 100%; border-radius: 0.4rem; object-fit: cover; height: 120px; margin-bottom: 5px; }
+        
+		.track-label { 
+			background: rgba(255, 255, 255, 0.9); 
+			border: 1px solid #999; 
+			padding: 1px 5px; 
+			font-weight: bold; 
+			border-radius: 4px; 
+			font-size: 10px; 
+			color: #333; 
+			box-shadow: 2px 2px 5px rgba(0,0,0,0.1);
+			white-space: nowrap; /* Prevents the label from wrapping */
+		}
+
+		/* This hides the little plastic 'tip/arrow' of the tooltip for a cleaner look */
+		.leaflet-tooltip-right:before, .leaflet-tooltip-left:before {
+			display: none;
+		}
+	</style>
 </head>
 <body>
 
@@ -34,7 +73,7 @@
         <div id="filter-controls-panel">
             <div class="bg-indigo-50 p-3 rounded-lg flex flex-col gap-2 text-[10px] font-bold">
                 <div class="flex justify-between"><span>Map Switch Zoom</span><span id="threshold-display">16</span></div>
-                <input type="range" id="threshold-slider" min="10" max="16" value="13" step="0.5" class="w-full">
+                <input type="range" id="threshold-slider" min="10" max="17" value="16" step="1" class="w-full">
             </div>
             <select id="year-select" class="text-sm p-2 border rounded font-bold"></select>
             <div class="grid grid-cols-2 gap-2">
@@ -55,15 +94,21 @@
 </div>
 
 <script>
-    //const ASSET_BASE = 'https://raw.githubusercontent.com/pweigert64/tourenbuch/main';
-	const ASSET_BASE = '.';
-    const COLORS = { 'ski': '#4f46e5', 'hike': '#b54708', 'climb': '#dc2626', 'bike': '#065f46', 'bike+hike': '#f97316' };
+    const ASSET_BASE = 'https://raw.githubusercontent.com/pweigert64/tourenbuch/main';
+    const COLORS = { 
+        'ski': '#4f46e5', 
+        'hike': '#b54708', 
+        'climb': '#dc2626', 
+        'bike': '#065f46', 
+        'bike+hike': '#f97316',
+        'unknown': '#6b7280' 
+    };
 
     let map, overviewLayer, detailLayer, hikingLayer, cyclingLayer;
     let photoMarkers = [], currentMarkers = [], loadedTracks = {}; 
-    let activeFilters = { ski: true, hike: true, climb: true, bike: true, 'bike+hike': true };
+    let activeFilters = { ski: true, hike: true, climb: true, bike: true, 'bike+hike': true, 'unknown': true };
     let activeYear = 'All', isInitialLoad = true, switchThreshold = 16; 
-    let MAPTILER_KEY, SHEETS_CSV_URL; // Global variables
+    let MAPTILER_KEY, SHEETS_CSV_URL;
 
     function toggleMenu() {
         const p = document.getElementById('filter-controls-panel');
@@ -71,12 +116,10 @@
     }
 
     async function loadConfig() {
-        // We use fetch instead of <script> to bypass GitHub's strict MIME checking
         const response = await fetch(`${ASSET_BASE}/config.js?t=${new Date().getTime()}`);
         if (!response.ok) throw new Error("Could not find config.js on GitHub.");
         const text = await response.text();
         
-        // This safely extracts the values even if they use const or var
         const keyMatch = text.match(/MAPTILER_KEY\s*=\s*['"]([^'"]+)['"]/);
         const urlMatch = text.match(/SHEETS_CSV_URL\s*=\s*['"]([^'"]+)['"]/);
         
@@ -116,7 +159,7 @@
     }
 
     function initMap() {
-        const startPos = [photoMarkers[0].lat, photoMarkers[0].lon];
+        const startPos = (photoMarkers[0] && photoMarkers[0].lat) ? [photoMarkers[0].lat, photoMarkers[0].lon] : [48.3, 14.2];
         map = L.map('map', { center: startPos, zoom: 11, zoomControl: false });
         
         overviewLayer = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', { maxZoom: 17 }).addTo(map);
@@ -125,11 +168,34 @@
         hikingLayer = L.tileLayer('https://tile.waymarkedtrails.org/hiking/{z}/{x}/{y}.png');
         cyclingLayer = L.tileLayer('https://tile.waymarkedtrails.org/mtb/{z}/{x}/{y}.png');
 
+        const zoomInfo = L.control({position: 'topright'});
+        zoomInfo.onAdd = function() {
+            this._div = L.DomUtil.create('div', 'zoom-info');
+            this._div.style.background = 'white';
+            this._div.style.padding = '5px';
+            this._div.innerHTML = 'Zoom: ' + map.getZoom();
+            return this._div;
+        };
+        zoomInfo.addTo(map);
+
         map.on('zoomend', () => {
-            if (map.getZoom() >= switchThreshold) {
-                if (!map.hasLayer(detailLayer)) { detailLayer.addTo(map); map.removeLayer(overviewLayer); }
+            const currentZoom = map.getZoom();
+            zoomInfo._div.innerHTML = 'Zoom: ' + currentZoom;
+
+            if (currentZoom >= switchThreshold) {
+                if (!map.hasLayer(detailLayer)) { 
+                    detailLayer.addTo(map); 
+                    map.removeLayer(overviewLayer); 
+                    hikingLayer.bringToFront();
+                    cyclingLayer.bringToFront();
+                }
             } else {
-                if (!map.hasLayer(overviewLayer)) { overviewLayer.addTo(map); map.removeLayer(detailLayer); }
+                if (!map.hasLayer(overviewLayer)) { 
+                    overviewLayer.addTo(map); 
+                    map.removeLayer(detailLayer); 
+                    hikingLayer.bringToFront();
+                    cyclingLayer.bringToFront();
+                }
             }
         });
 
@@ -163,9 +229,7 @@
 
     window.clearAllTracks = function() {
         Object.keys(loadedTracks).forEach(idx => {
-            map.removeLayer(loadedTracks[idx].layer);
-            map.removeLayer(loadedTracks[idx].label);
-            if (loadedTracks[idx].arrows) map.removeLayer(loadedTracks[idx].arrows);
+            map.removeLayer(loadedTracks[idx].group);
         });
         loadedTracks = {};
         renderMarkers();
@@ -174,8 +238,12 @@
 	window.loadGpxTrack = function(idx) {
 		const p = photoMarkers[idx];
 		const url = `${ASSET_BASE}/${p.year}/gpx/${p.gpx}`;
-		const color = COLORS[p.activity] || '#ef4444';
+		const color = COLORS[p.activity] || COLORS['unknown'];
 
+		// 1. Auto-close the popup to clear the view
+		map.closePopup();
+
+		// 2. If track is already loaded, remove it (Toggle behavior)
 		if (loadedTracks[idx]) {
 			map.removeLayer(loadedTracks[idx].group);
 			delete loadedTracks[idx];
@@ -185,68 +253,53 @@
 
 		const trackGroup = L.layerGroup().addTo(map);
 
-		// Activity-based "Texture" Logic
-		let dashStyle = ''; // Default: Solid
-		let weightStyle = 5;
-
-		if (p.activity === 'ski') {
-			dashStyle = '1, 10'; // Dotted: 1px dot, 10px gap
-			weightStyle = 6;     // Slightly thicker for dots to be visible
-		} else if (p.activity === 'hike' || p.activity === 'climb') {
-			dashStyle = '8, 8';  // Dashed: 8px line, 8px gap
-		} else {
-			// Bike and Bike+Hike remain Solid with the white stitch
-			dashStyle = null; 
-		}
+		// 3. Define the dash style for the line
+		let dashStyle = (p.activity === 'ski') ? '1, 10' : (p.activity === 'hike' || p.activity === 'climb') ? '8, 8' : null;
 
 		const trackLayer = new L.GPX(url, {
 			async: true,
 			marker_options: { startIconUrl: '', endIconUrl: '' },
-			polyline_options: { 
-				color: color, 
-				weight: weightStyle, 
-				opacity: 0.9, 
-				lineJoin: 'round',
-				// If it's hike/ski, the color itself gets the dash
-				dashArray: dashStyle 
-			}
+			polyline_options: { color: color, weight: 5, opacity: 0.9, lineJoin: 'round', dashArray: dashStyle }
 		}).on('loaded', e => {
-			// Add the High-Contrast Overlay
+			// 4. Draw the white contrast "stitch" line
 			e.target.eachLayer(layer => {
 				if (layer instanceof L.Polyline) {
-					let overlayDash = '10, 15'; // Default stitch
-					
-					if (p.activity === 'ski') {
-						overlayDash = '1, 10'; // Keep dots aligned
-					} else if (p.activity === 'hike' || p.activity === 'climb') {
-						overlayDash = '8, 8';  // Keep dashes aligned
-					}
-
-					L.polyline(layer.getLatLngs(), {
-						color: '#FFFFFF',
-						weight: 2,
-						opacity: 0.7,
-						dashArray: overlayDash,
-						lineCap: 'round',
-						interactive: false
+					let overlayDash = (p.activity === 'ski') ? '1, 10' : '8, 8';
+					L.polyline(layer.getLatLngs(), { 
+						color: '#FFFFFF', 
+						weight: 2, 
+						opacity: 0.7, 
+						dashArray: overlayDash, 
+						lineCap: 'round', 
+						interactive: false 
 					}).addTo(trackGroup);
 				}
 			});
 
-			const label = L.tooltip({ permanent: true, direction: 'center', className: 'track-label' })
-				.setContent(p.title)
-				.setLatLng(e.target.getBounds().getCenter());
+			// 5. Place the label exactly at the icon's coordinates
+			const label = L.tooltip({ 
+				permanent: true, 
+				direction: 'right', 
+				offset: [15, 0], 
+				className: 'track-label' 
+			})
+			.setContent(p.title)
+			.setLatLng([p.lat, p.lon]); // Uses the marker position
 			
 			trackGroup.addLayer(label);
-			map.flyToBounds(e.target.getBounds(), { padding: [60, 60] });
+			
+			// 6. Zoom to fit the track
+			map.flyToBounds(e.target.getBounds(), { padding: [40, 40] });
 			loadedTracks[idx] = { group: trackGroup };
 			renderMarkers();
+		}).on('error', function(e) {
+			console.error('GPX error:', e.err);
 		});
 
 		trackGroup.addLayer(trackLayer);
 	};
-
-	function renderMarkers() {
+	
+    function renderMarkers() {
         let openId = null;
         currentMarkers.forEach(m => { if(m.getPopup().isOpen()) openId = m._idx; map.removeLayer(m); });
         currentMarkers = [];
@@ -254,48 +307,53 @@
 
         const iconsMap = { 'ski': '❄️', 'hike': '🥾', 'climb': '⛰️', 'bike': '🚴', 'bike+hike': '🚵' };
 
-        photoMarkers.filter(p => activeFilters[p.activity] && (activeYear === 'All' || p.year.toString() === activeYear))
-        .forEach((p, i) => {
-            const idx = photoMarkers.indexOf(p);
-            const active = !!loadedTracks[idx];
-            
-            // Only show image if URL exists
-            const imgHtml = (p.img && p.img.length > 4) 
-                ? `<img src="${ASSET_BASE}/${p.year}/img/${p.img}" class="photo-popup-img" onerror="this.style.display='none'">` 
-                : '';
-            
-            // Validity checks
-            const hasAlbum = (p.album && p.album.startsWith('http'));
-            const hasTrack = (p.gpx && p.gpx.length > 5 && !p.gpx.includes('todo'));
-            
-            const icon = L.divIcon({
-                className: `emoji-marker-outer marker-${p.activity.replace('+', '-')}`,
-                html: `<span class="emoji-marker-inner">${iconsMap[p.activity] || '📍'}</span>`,
-                iconSize: [26, 26]
-            });
+        photoMarkers.forEach((p, i) => {
+            const rawAct = (p.activity) ? p.activity.toLowerCase().trim() : '';
+            const isKnown = iconsMap.hasOwnProperty(rawAct);
+            const activityKey = isKnown ? rawAct : 'unknown';
+            const displayIcon = isKnown ? iconsMap[rawAct] : '❓';
 
-            // The side-by-side flex container
-            const content = `
-                <div class="text-center" style="min-width: 200px;">
-                    ${imgHtml}
-                    <div class="font-bold text-xs mb-3 px-1 leading-tight">${p.title}</div>
-                    <div class="flex flex-row gap-2 justify-center">
-                        ${hasAlbum ? `<a href="${p.album}" target="_blank" class="flex-1 p-2 bg-indigo-900 text-white text-[10px] font-bold rounded text-center whitespace-nowrap">📸 ALBUM</a>` : ''}
-                        ${hasTrack ? `<button onclick="loadGpxTrack(${idx})" class="flex-1 p-2 ${active ? 'bg-gray-500' : 'bg-emerald-700'} text-white text-[10px] font-bold rounded whitespace-nowrap">
-                            ${active ? '❌ HIDE' : '🗺️ TRACK'}</button>` : ''}
-                    </div>
-                </div>`;
+            const yearMatch = (activeYear === 'All' || p.year.toString() === activeYear);
+            const filterMatch = isKnown ? activeFilters[rawAct] : true;
 
-            const m = L.marker([p.lat, p.lon], { icon }).bindPopup(content).addTo(map);
-            m._idx = idx;
-            currentMarkers.push(m);
-            if((isInitialLoad && i === 0) || openId === idx) m.openPopup();
+            if (yearMatch && filterMatch && p.lat && p.lon) {
+                const idx = i;
+                const active = !!loadedTracks[idx];
+                const imgHtml = (p.img && p.img.length > 4) 
+                    ? `<img src="${ASSET_BASE}/${p.year}/img/${p.img}" class="photo-popup-img" onerror="this.style.display='none'">` 
+                    : '';
+                
+                const icon = L.divIcon({
+                    className: `emoji-marker-outer marker-${activityKey.replace('+', '-')}`,
+                    html: `<span class="emoji-marker-inner">${displayIcon}</span>`,
+                    iconSize: [26, 26]
+                });
+
+                const content = `
+                    <div class="text-center">
+                        ${imgHtml}
+                        <div class="popup-title" title="${p.title}">${p.title}</div>
+                        <div style="font-size: 9px; color: #666; margin-bottom: 8px;">
+                            ${displayIcon} ${p.activity || 'Archived'}
+                        </div>
+                        <div class="flex flex-row gap-2 justify-center">
+                            ${(p.album && p.album.startsWith('http')) ? `<a href="${p.album}" target="_blank" class="flex-1 p-2 bg-indigo-900 text-white text-[10px] font-bold rounded text-center">📸 ALBUM</a>` : ''}
+                            ${(p.gpx && p.gpx.length > 5) ? `<button onclick="loadGpxTrack(${idx})" class="flex-1 p-2 ${active ? 'bg-gray-500' : 'bg-emerald-700'} text-white text-[10px] font-bold rounded">🗺️ TRACK</button>` : ''}
+                        </div>
+                    </div>`;
+
+                const m = L.marker([p.lat, p.lon], { icon, zIndexOffset: 1000 }).bindPopup(content).addTo(map);
+                m._idx = idx;
+                currentMarkers.push(m);
+                if((isInitialLoad && i === 0) || openId === idx) m.openPopup();
+            }
         });
         isInitialLoad = false;
     }
 
     function populateYearDropdown() {
         const s = document.getElementById('year-select');
+        if (!s) return;
         const yrs = ['All', ...new Set(photoMarkers.map(p => p.year.toString()))].sort().reverse();
         s.innerHTML = '';
         yrs.forEach(y => s.add(new Option(y, y)));
