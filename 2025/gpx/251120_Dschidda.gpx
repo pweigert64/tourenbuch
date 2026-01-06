@@ -6,39 +6,9 @@
 <time>2026-01-04T10:12:29Z</time>
 </metadata>
 <trk>
-<name>Saudi1</name>
+<name>Dschidda</name>
 <type>train</type>
 <trkseg>
-<trkpt lat="24.4709614" lon="39.6995661">
-<ele>806.96</ele>
-<time>2025-11-20T10:34:58Z</time>
-<hdop>772.45</hdop>
-</trkpt>
-<trkpt lat="24.4571099" lon="39.6982235">
-<ele>762.97</ele>
-<time>2025-11-20T10:35:48Z</time>
-<hdop>350.0</hdop>
-</trkpt>
-<trkpt lat="24.4438444" lon="39.7051839">
-<ele>684.992</ele>
-<time>2025-11-20T10:36:49Z</time>
-<hdop>209.69</hdop>
-</trkpt>
-<trkpt lat="24.3837204" lon="39.6881646">
-<ele>699.006</ele>
-<time>2025-11-20T10:37:25Z</time>
-<hdop>101.53</hdop>
-</trkpt>
-<trkpt lat="24.3693742" lon="39.6701901">
-<ele>697.029</ele>
-<time>2025-11-20T10:39:00Z</time>
-<hdop>377.55</hdop>
-</trkpt>
-<trkpt lat="24.3490138" lon="39.6356873">
-<ele>789.03</ele>
-<time>2025-11-20T10:39:55Z</time>
-<hdop>310.71</hdop>
-</trkpt>
 <trkpt lat="21.5168464" lon="39.2466982">
 <ele>85.955</ele>
 <time>2025-11-20T12:11:12Z</time>
