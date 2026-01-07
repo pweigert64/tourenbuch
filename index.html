@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Alpine Retrospective Map v44</title>
+    <title>Alpine Retrospective Map v45</title>
     
     <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
@@ -11,13 +11,36 @@
     <script src="https://cdn.jsdelivr.net/npm/leaflet-polylinedecorator@1.6.0/dist/leaflet.polylinedecorator.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     
-	<style>
+    <style>
+        /* RESET: Makes sure the map fills the whole browser window */
         html, body, #map-container { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; }
         #map { width: 100%; height: 100vh; background: #f3f4f6; }
-        #floating-controls { position: absolute; top: 70px; right: 15px; z-index: 9999; display: flex; flex-direction: column; align-items: flex-end; gap: 12px; }
-        #filter-controls-panel { background: white; padding: 15px; border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.2); min-width: 240px; display: none; flex-direction: column; gap: 12px; border: 1px solid #e5e7eb; }
-        #filter-toggle { background: #4f46e5; color: white; width: 50px; height: 50px; border-radius: 50%; cursor: pointer; border: 3px solid white; font-size: 1.5rem; display: flex; align-items: center; justify-content: center; }
-        .filter-button { padding: 8px; font-size: 0.75rem; font-weight: 700; border-radius: 8px; cursor: pointer; border: 1px solid #d1d5db; text-align: center; width: 100%; }
+
+        /* GEAR WHEEL PANEL: Styles for the settings button and the pop-out menu */
+        #floating-controls { 
+            position: absolute; top: 15px; right: 15px; 
+            z-index: 9999; /* Higher number means it stays ON TOP of the map */
+            display: flex; flex-direction: column; align-items: flex-end; gap: 12px; 
+        }
+		/* The control elements within the gear wheel */
+		#zoom-level-display {
+			background: #f3f4f6; color: #374151;
+			padding: 2px 6px; border-radius: 4px;
+			font-family: monospace; font-weight: bold;
+		}
+        #filter-controls-panel { 
+            background: white; padding: 15px; border-radius: 12px; 
+            box-shadow: 0 10px 25px rgba(0,0,0,0.2); 
+            min-width: 240px; display: none; /* Hidden by default until we click the gear */
+            flex-direction: column; gap: 12px; border: 1px solid #e5e7eb; 
+        }
+		#filter-toggle { background: #4f46e5; color: white; width: 50px; height: 50px; border-radius: 50%; 
+			cursor: pointer; border: 3px solid white; font-size: 1.5rem; 
+			display: flex; align-items: center; justify-content: center; 
+			}
+        .filter-button { padding: 8px; font-size: 0.75rem; font-weight: 700; border-radius: 8px;
+			cursor: pointer; border: 1px solid #d1d5db; text-align: center; width: 100%; 
+			}
         .filter-button-active { background: #4f46e5 !important; color: white !important; }
         
         /* Marker Styles */
@@ -27,26 +50,28 @@
         .marker-climb { background: #dc2626; } 
         .marker-bike { background: #065f46; } 
         .marker-bike-hike { background: #f97316; }
+		.marker-poi { background: #9333ea; }     /* Purple for Points of Interest */
         .marker-unknown { background: #6b7280; } /* Grey for unknown/typos */
         
         .emoji-marker-inner { font-size: 11pt; background: white; border-radius: 50%; width: 18px; height: 18px; display: flex; align-items: center; justify-content: center; }
         
-        /* Popup & Title Styling */
-        .leaflet-popup-content { width: 220px !important; margin: 12px; }
+        /* Activities Popup & Title Styling */
+        .leaflet-popup-content { width: 200px !important; margin: 10px; }
         .popup-title { 
-            font-size: 11px; 
+            font-size: 10px; 
             line-height: 1.3; 
-            margin: 8px 0; 
+            margin: 5px 0; 
             font-weight: bold;
             display: -webkit-box;
-            -webkit-line-clamp: 2; /* Shows max 2 lines */
+            -webkit-line-clamp: 2;   /* show max 2 lines and ... */
             -webkit-box-orient: vertical;
-            overflow: hidden;
-            text-overflow: ellipsis;
+            overflow: hidden;        /* ... if still too long clip and  */
+            text-overflow: ellipsis; /* ... show triple dots */
             text-align: center;
         }
         .photo-popup-img { width: 100%; border-radius: 0.4rem; object-fit: cover; height: 120px; margin-bottom: 5px; }
         
+		/* Labal of track shown next to the activity marker */
 		.track-label { 
 			background: rgba(255, 255, 255, 0.9); 
 			border: 1px solid #999; 
@@ -71,23 +96,43 @@
     <div id="floating-controls">
         <button id="filter-toggle" onclick="toggleMenu()">⚙️</button>
         <div id="filter-controls-panel">
-            <div class="bg-indigo-50 p-3 rounded-lg flex flex-col gap-2 text-[10px] font-bold">
-                <div class="flex justify-between"><span>Map Switch Zoom</span><span id="threshold-display">16</span></div>
-                <input type="range" id="threshold-slider" min="10" max="17" value="16" step="1" class="w-full">
-            </div>
+			<div class="bg-indigo-50 p-3 rounded-lg flex flex-col gap-2 text-[10px] font-bold">
+				<div class="flex justify-between border-b border-indigo-200 pb-1 mb-1">
+					<span class="text-indigo-600">Current Zoom</span>
+					<span id="zoom-level-display">11</span>
+				</div>
+				
+				<div class="flex justify-between">
+					<span>Map Switch Zoom</span>
+					<span id="threshold-display">16</span>
+				</div>
+				<input type="range" id="threshold-slider" min="1" max="17" value="16" step="1" class="w-full">
+			</div>
             <select id="year-select" class="text-sm p-2 border rounded font-bold"></select>
-            <div class="grid grid-cols-2 gap-2">
-                <button class="filter-button filter-button-active" data-activity="ski">❄️ Ski</button>
-                <button class="filter-button filter-button-active" data-activity="hike">🥾 Hike</button>
-                <button class="filter-button filter-button-active" data-activity="climb">⛰️ Climb</button>
-                <button class="filter-button filter-button-active" data-activity="bike">🚴 Bike</button>
-                <button class="filter-button filter-button-active col-span-2" data-activity="bike+hike">🚵 Bike + Hike</button>
-            </div>
-            <div class="border-t pt-3 flex flex-col gap-2">
-                <button id="hike-layer-btn" class="filter-button border text-[10px]">🏔️ HIKING NETWORK</button>
-                <button id="bike-layer-btn" class="filter-button border text-[10px]">🚲 MTB NETWORK</button>
-                <button id="clear-tracks-btn" class="filter-button bg-red-600 text-white border-none mt-1" onclick="clearAllTracks()" style="display:none;">🗑️ CLEAR TRACKS</button>
-            </div>
+			<div class="grid grid-cols-2 gap-2">
+				<button class="filter-button filter-button-active" data-activity="ski">❄️ Ski</button>
+				<button class="filter-button filter-button-active" data-activity="hike">🥾 Hike</button>
+				<button class="filter-button filter-button-active" data-activity="climb">⛰️ Climb</button>
+				<button class="filter-button filter-button-active" data-activity="bike">🚴 Bike</button>
+				<button class="filter-button filter-button-active" data-activity="bike+hike">🚵 Bike + Hike</button>
+				
+				<button class="filter-button filter-button-active" data-activity="poi">🏛️ POI</button>
+				<button class="filter-button filter-button-active" data-activity="unknown">❓ Other</button>
+			</div>
+			<div class="border-t pt-3 flex flex-col gap-2">
+				<button id="hike-layer-btn" class="filter-button border text-[10px]">🏔️ HIKING NETWORK</button>
+				<button id="bike-layer-btn" class="filter-button border text-[10px]">🚲 MTB NETWORK</button>
+				
+				<div class="grid grid-cols-2 gap-2 mt-1">
+					<button id="show-all-tracks-btn" 
+							class="filter-button bg-green-600 text-white border-none" 
+							onclick="showAllTracks()">🗺️ ALL</button>
+					
+					<button id="clear-tracks-btn" 
+							class="filter-button bg-gray-300 text-white border-none cursor-not-allowed" 
+							onclick="clearAllTracks()">🗑️ CLEAR</button>
+				</div>
+			</div>
         </div>
     </div>
     <div id="map"></div>
@@ -95,18 +140,25 @@
 
 <script>
     const ASSET_BASE = 'https://raw.githubusercontent.com/pweigert64/tourenbuch/main';
+	//const ASSET_BASE = '.';
     const COLORS = { 
         'ski': '#4f46e5', 
         'hike': '#b54708', 
         'climb': '#dc2626', 
         'bike': '#065f46', 
         'bike+hike': '#f97316',
+		'poi': '#9333ea',   // Purple
         'unknown': '#6b7280' 
     };
+	// GLOBAL ICON MAP - The single source of truth
+	const ICONS_MAP = { 
+		'ski': '❄️', 'hike': '🥾', 'climb': '⛰️', 
+		'bike': '🚴', 'bike+hike': '🚵', 'poi': '🏛️' 
+	};
 
     let map, overviewLayer, detailLayer, hikingLayer, cyclingLayer;
-    let photoMarkers = [], currentMarkers = [], loadedTracks = {}; 
-    let activeFilters = { ski: true, hike: true, climb: true, bike: true, 'bike+hike': true, 'unknown': true };
+    let photoMarkers = [], currentMarkers = [], loadedTracks = {}, activeLines = {}; 
+    let activeFilters = { ski: true, hike: true, climb: true, bike: true, 'bike+hike': true, 'poi': true, 'unknown': true };
     let activeYear = 'All', isInitialLoad = true, switchThreshold = 16; 
     let MAPTILER_KEY, SHEETS_CSV_URL;
 
@@ -159,7 +211,7 @@
     }
 
     function initMap() {
-        const startPos = (photoMarkers[0] && photoMarkers[0].lat) ? [photoMarkers[0].lat, photoMarkers[0].lon] : [48.3, 14.2];
+        const startPos = [photoMarkers[0].lat, photoMarkers[0].lon];
         map = L.map('map', { center: startPos, zoom: 11, zoomControl: false });
         
         overviewLayer = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', { maxZoom: 17 }).addTo(map);
@@ -168,20 +220,13 @@
         hikingLayer = L.tileLayer('https://tile.waymarkedtrails.org/hiking/{z}/{x}/{y}.png');
         cyclingLayer = L.tileLayer('https://tile.waymarkedtrails.org/mtb/{z}/{x}/{y}.png');
 
-        const zoomInfo = L.control({position: 'topright'});
-        zoomInfo.onAdd = function() {
-            this._div = L.DomUtil.create('div', 'zoom-info');
-            this._div.style.background = 'white';
-            this._div.style.padding = '5px';
-            this._div.innerHTML = 'Zoom: ' + map.getZoom();
-            return this._div;
-        };
-        zoomInfo.addTo(map);
-
         map.on('zoomend', () => {
-            const currentZoom = map.getZoom();
-            zoomInfo._div.innerHTML = 'Zoom: ' + currentZoom;
-
+			const currentZoom = map.getZoom();
+				
+			// Update the Zoom number inside of gear wheel panel
+			const zDisp = document.getElementById('zoom-level-display');
+			if (zDisp) zDisp.innerText = currentZoom;
+				
             if (currentZoom >= switchThreshold) {
                 if (!map.hasLayer(detailLayer)) { 
                     detailLayer.addTo(map); 
@@ -205,14 +250,25 @@
         renderMarkers();
     }
 
+	/* -------------------------------------------------------------------------
+	 * SETUP EVENTS assigns the handlefunctions to the defined events.
+	 --------------------------------------------------------------------------*/
     function setupEvents() {
-        document.querySelectorAll('[data-activity]').forEach(btn => {
-            btn.onclick = () => {
-                activeFilters[btn.dataset.activity] = !activeFilters[btn.dataset.activity];
-                btn.classList.toggle('filter-button-active', activeFilters[btn.dataset.activity]);
-                renderMarkers();
-            };
-        });
+		document.querySelectorAll('[data-activity]').forEach(btn => {
+				btn.onclick = () => {
+					// 1. Get the key (e.g., 'poi') from the button
+					const activityKey = btn.dataset.activity; 
+					
+					// 2. Toggle the true/false value in our Global State
+					activeFilters[activityKey] = !activeFilters[activityKey];
+					
+					// 3. Update the button's look (Purple if active, Gray if not)
+					btn.classList.toggle('filter-button-active', activeFilters[activityKey]);
+					
+					// 4. Refresh the map to show/hide the markers
+					renderMarkers();
+				};
+			});
         document.getElementById('hike-layer-btn').onclick = function() {
             map.hasLayer(hikingLayer) ? map.removeLayer(hikingLayer) : hikingLayer.addTo(map);
             this.classList.toggle('filter-button-active');
@@ -235,15 +291,14 @@
         renderMarkers();
     };
 
-	window.loadGpxTrack = function(idx) {
+
+	window.loadGpxTrack = function(idx, shouldZoom = true) {
 		const p = photoMarkers[idx];
 		const url = `${ASSET_BASE}/${p.year}/gpx/${p.gpx}`;
-		const color = COLORS[p.activity] || COLORS['unknown'];
+		const color = COLORS[ICONS_MAP.hasOwnProperty(p.activity?.toLowerCase().trim()) ? p.activity.toLowerCase().trim() : 'unknown'];
 
-		// 1. Auto-close the popup to clear the view
 		map.closePopup();
 
-		// 2. If track is already loaded, remove it (Toggle behavior)
 		if (loadedTracks[idx]) {
 			map.removeLayer(loadedTracks[idx].group);
 			delete loadedTracks[idx];
@@ -252,105 +307,230 @@
 		}
 
 		const trackGroup = L.layerGroup().addTo(map);
-
-		// 3. Define the dash style for the line
-		let dashStyle = (p.activity === 'ski') ? '1, 10' : (p.activity === 'hike' || p.activity === 'climb') ? '8, 8' : null;
+		const label = L.tooltip({ permanent: true, direction: 'right', offset: [15, 0], className: 'track-label' })
+			.setContent(p.title).setLatLng([p.lat, p.lon]);
+		trackGroup.addLayer(label);
 
 		const trackLayer = new L.GPX(url, {
 			async: true,
 			marker_options: { startIconUrl: '', endIconUrl: '' },
-			polyline_options: { color: color, weight: 5, opacity: 0.9, lineJoin: 'round', dashArray: dashStyle }
+			polyline_options: { color: color, weight: 5, opacity: 0.9, lineJoin: 'round' }
 		}).on('loaded', e => {
-			// 4. Draw the white contrast "stitch" line
+			// 1. Loop through the GPX layers to find the actual lines (polylines)
 			e.target.eachLayer(layer => {
 				if (layer instanceof L.Polyline) {
-					let overlayDash = (p.activity === 'ski') ? '1, 10' : '8, 8';
+					// 2. Decide the "Style" of the white dashed overlay based on activity
+					let dashPattern;
+					if (p.activity === 'ski') {
+						dashPattern = '2, 12'; // Short dots (Ski tracks in snow)
+					} else if (p.activity === 'hike' || p.activity === 'climb') {
+						dashPattern = '10, 10'; // Equal dashes (Standard trail)
+					} else {
+						dashPattern = '20, 5'; // Long dashes (Faster movement/Roads)
+					}
+
+					// 3. Create the White "Zipper" Line on top of the colored line
 					L.polyline(layer.getLatLngs(), { 
 						color: '#FFFFFF', 
 						weight: 2, 
-						opacity: 0.7, 
-						dashArray: overlayDash, 
+						opacity: 0.8, 
+						dashArray: dashPattern, 
 						lineCap: 'round', 
 						interactive: false 
 					}).addTo(trackGroup);
 				}
 			});
-
-			// 5. Place the label exactly at the icon's coordinates
-			const label = L.tooltip({ 
-				permanent: true, 
-				direction: 'right', 
-				offset: [15, 0], 
-				className: 'track-label' 
-			})
-			.setContent(p.title)
-			.setLatLng([p.lat, p.lon]); // Uses the marker position
 			
-			trackGroup.addLayer(label);
+			// 4. Handle Zooming (Using the shouldZoom toggle we discussed)
+			if (shouldZoom) {
+				map.flyToBounds(e.target.getBounds(), { padding: [40, 40] });
+			}
 			
-			// 6. Zoom to fit the track
-			map.flyToBounds(e.target.getBounds(), { padding: [40, 40] });
-			loadedTracks[idx] = { group: trackGroup };
+			loadedTracks[idx] = { group: trackGroup, filename: p.gpx, layer: e.target };
 			renderMarkers();
-		}).on('error', function(e) {
-			console.error('GPX error:', e.err);
-		});
+		})
 
 		trackGroup.addLayer(trackLayer);
+		return trackLayer; // Hand the track back to the caller
+	};
+
+	/* -------------------------------------------------------------------------
+	 * SHOW ALL TRACKS that are not already visible and match the active filters
+	 * Function triggered by gear wheel button!
+	 --------------------------------------------------------------------------*/
+	window.showAllTracks = function() {
+		const bounds = L.latLngBounds(); // Create an empty bounding box
+		let tracksFound = 0;
+
+		photoMarkers.forEach((p, idx) => {
+			const rawAct = (p.activity) ? p.activity.toLowerCase().trim() : '';
+			const activityKey = ICONS_MAP.hasOwnProperty(rawAct) ? rawAct : 'unknown';
+			const yearMatch = (activeYear === 'All' || p.year.toString() === activeYear);
+			const filterMatch = activeFilters[activityKey];
+
+			if (yearMatch && filterMatch && p.gpx && p.gpx.length > 5 && !loadedTracks[idx]) {
+				const track = loadGpxTrack(idx, false); // Load silently
+				tracksFound++;
+				
+				// Listen for the 'loaded' event on each track to expand our bounds
+				track.on('loaded', e => {
+					bounds.extend(e.target.getBounds());
+					// Once all tracks are loaded, fit the map to the total area
+					map.flyToBounds(bounds, { padding: [50, 50], duration: 1.5 });
+				});
+			}
+		});
 	};
 	
-    function renderMarkers() {
-        let openId = null;
-        currentMarkers.forEach(m => { if(m.getPopup().isOpen()) openId = m._idx; map.removeLayer(m); });
-        currentMarkers = [];
-        document.getElementById('clear-tracks-btn').style.display = Object.keys(loadedTracks).length > 0 ? 'block' : 'none';
+	/* -------------------------------------------------------------------------
+	 * CLEAR ALL TRACKS that are visible
+	 * Function triggered by gear wheel button!
+	 --------------------------------------------------------------------------*/	
+	window.clearAllTracks = function() {
+		// Loop through all currently active track groups
+		Object.keys(loadedTracks).forEach(idx => {
+			// Use .group because that's where we stored the LayerGroup
+			if (loadedTracks[idx] && loadedTracks[idx].group) {
+				map.removeLayer(loadedTracks[idx].group);
+			}
+		});
+		// Reset the tracking object so the map "forgets" what was loaded
+		loadedTracks = {};
+		// Refresh the UI/Markers
+		renderMarkers();
+	};
 
-        const iconsMap = { 'ski': '❄️', 'hike': '🥾', 'climb': '⛰️', 'bike': '🚴', 'bike+hike': '🚵' };
+	/* -------------------------------------------------------------------------
+	 * RENDER MARKERS on the map
+	 * Function drows the activity markers on the map and handles the popUp
+	 --------------------------------------------------------------------------*/	
+	function renderMarkers() {
+		let openId = null;
+		// Clean up existing markers and check if we need the "Clear" button in the sidebar
+		currentMarkers.forEach(m => { 
+			if(m.getPopup().isOpen()) openId = m._idx; 
+			map.removeLayer(m); 
+		});
+		currentMarkers = [];
+		
+		// cleanup existing Tracks
+		Object.keys(loadedTracks).forEach(idx => {
+			const p = photoMarkers[idx];
+			const rawAct = (p.activity) ? p.activity.toLowerCase().trim() : '';
+			const activityKey = ICONS_MAP.hasOwnProperty(rawAct) ? rawAct : 'unknown';
+			
+			// If the filter for this track is now OFF, remove the track
+			if (!activeFilters[activityKey]) {
+				map.removeLayer(loadedTracks[idx].group);
+				delete loadedTracks[idx];
+			}
+		});
+		
+		// stable clear Button logic ---
+		const clearBtn = document.getElementById('clear-tracks-btn');
+		if (clearBtn) {
+			const hasTracks = Object.keys(loadedTracks).length > 0;
+			
+			if (hasTracks) {
+				// Active State: Red
+				clearBtn.classList.remove('bg-gray-300', 'cursor-not-allowed');
+				clearBtn.classList.add('bg-red-600');
+				clearBtn.onclick = () => clearAllTracks();
+			} else {
+				// Inactive State: Grey
+				clearBtn.classList.remove('bg-red-600');
+				clearBtn.classList.add('bg-gray-300', 'cursor-not-allowed');
+				clearBtn.onclick = null; // Disable clicking
+			}
+		}
+		
+		photoMarkers.forEach((p, i) => {
+			const idx = i;
+			const rawAct = (p.activity) ? p.activity.toLowerCase().trim() : '';
+			
+			// 3. Determine Category and Icon
+			const isKnown = ICONS_MAP.hasOwnProperty(rawAct);
+			const activityKey = isKnown ? rawAct : 'unknown';
+			const displayIcon = isKnown ? ICONS_MAP[rawAct] : '❓';
 
-        photoMarkers.forEach((p, i) => {
-            const rawAct = (p.activity) ? p.activity.toLowerCase().trim() : '';
-            const isKnown = iconsMap.hasOwnProperty(rawAct);
-            const activityKey = isKnown ? rawAct : 'unknown';
-            const displayIcon = isKnown ? iconsMap[rawAct] : '❓';
+			// 4. Filter Logic (Year and Activity Type)
+			const yearMatch = (activeYear === 'All' || p.year.toString() === activeYear);
+			// If it's a known activity, check its filter; if unknown, check the 'unknown' filter
+			const filterMatch = activeFilters[activityKey];
 
-            const yearMatch = (activeYear === 'All' || p.year.toString() === activeYear);
-            const filterMatch = isKnown ? activeFilters[rawAct] : true;
+			if (yearMatch && filterMatch && p.lat && p.lon) {
+				const active = !!loadedTracks[idx];
+				
+				// --- POPUP BUTTON LOGIC ---
+				
+				// Album Button Logic
+				const hasAlbum = (p.album && p.album.startsWith('http'));
+				const albumBtnClass = hasAlbum ? 'bg-indigo-900' : 'bg-gray-300 cursor-not-allowed';
+				const albumBtnText = hasAlbum ? '📸 ALBUM' : '🚫 NO ALBUM';
+				const albumBtnLink = hasAlbum ? `href="${p.album}" target="_blank"` : 'onclick="return false;"';
 
-            if (yearMatch && filterMatch && p.lat && p.lon) {
-                const idx = i;
-                const active = !!loadedTracks[idx];
-                const imgHtml = (p.img && p.img.length > 4) 
-                    ? `<img src="${ASSET_BASE}/${p.year}/img/${p.img}" class="photo-popup-img" onerror="this.style.display='none'">` 
-                    : '';
-                
-                const icon = L.divIcon({
-                    className: `emoji-marker-outer marker-${activityKey.replace('+', '-')}`,
-                    html: `<span class="emoji-marker-inner">${displayIcon}</span>`,
-                    iconSize: [26, 26]
-                });
+				// Track Button Logic
+				const hasTrack = (p.gpx && p.gpx.length > 5);
+				let trackBtnClass, trackBtnText;
 
-                const content = `
-                    <div class="text-center">
-                        ${imgHtml}
-                        <div class="popup-title" title="${p.title}">${p.title}</div>
-                        <div style="font-size: 9px; color: #666; margin-bottom: 8px;">
-                            ${displayIcon} ${p.activity || 'Archived'}
-                        </div>
-                        <div class="flex flex-row gap-2 justify-center">
-                            ${(p.album && p.album.startsWith('http')) ? `<a href="${p.album}" target="_blank" class="flex-1 p-2 bg-indigo-900 text-white text-[10px] font-bold rounded text-center">📸 ALBUM</a>` : ''}
-                            ${(p.gpx && p.gpx.length > 5) ? `<button onclick="loadGpxTrack(${idx})" class="flex-1 p-2 ${active ? 'bg-gray-500' : 'bg-emerald-700'} text-white text-[10px] font-bold rounded">🗺️ TRACK</button>` : ''}
-                        </div>
-                    </div>`;
+				if (!hasTrack) {
+					trackBtnClass = 'bg-gray-300 cursor-not-allowed';
+					trackBtnText = '🚫 NO TRACK';
+				} else if (active) {
+					trackBtnClass = 'bg-gray-500'; // Gray means "Click to hide"
+					trackBtnText = '❌ HIDE';
+				} else {
+					trackBtnClass = 'bg-emerald-700'; // Green means "Click to show"
+					trackBtnText = '🗺️ TRACK';
+				}
 
-                const m = L.marker([p.lat, p.lon], { icon, zIndexOffset: 1000 }).bindPopup(content).addTo(map);
-                m._idx = idx;
-                currentMarkers.push(m);
-                if((isInitialLoad && i === 0) || openId === idx) m.openPopup();
-            }
-        });
-        isInitialLoad = false;
-    }
+				// Image HTML
+				const imgHtml = (p.img && p.img.length > 4) 
+					? `<img src="${ASSET_BASE}/${p.year}/img/${p.img}" class="photo-popup-img" onerror="this.style.display='none'">` 
+					: '';
+				
+				// 5. Create the Marker Icon
+				const icon = L.divIcon({
+					className: `emoji-marker-outer marker-${activityKey.replace('+', '-')}`,
+					html: `<span class="emoji-marker-inner">${displayIcon}</span>`,
+					iconSize: [26, 26]
+				});
 
+				// 6. Build the Popup HTML
+				const content = `
+					<div class="text-center">
+						${imgHtml}
+						<div class="popup-title" title="${p.title}">${p.title}</div>
+						<div style="font-size: 9px; color: #666; margin-bottom: 8px;">
+							${displayIcon} ${p.activity || 'Archived'}
+						</div>
+						<div class="flex flex-row gap-2 justify-center">
+							<a ${albumBtnLink} class="flex-1 p-2 ${albumBtnClass} text-white text-[10px] font-bold rounded text-center">
+								${albumBtnText}
+							</a>
+							<button onclick="${hasTrack ? `loadGpxTrack(${idx})` : ''}" 
+									class="flex-1 p-2 ${trackBtnClass} text-white text-[10px] font-bold rounded">
+								${trackBtnText}
+							</button>
+						</div>
+					</div>`;
+
+				// 7. Add to Map
+				const m = L.marker([p.lat, p.lon], { icon, zIndexOffset: 1000 }).bindPopup(content).addTo(map);
+				m._idx = idx;
+				currentMarkers.push(m);
+				
+				// Re-open popup if it was open before the re-render
+				if((isInitialLoad && i === 0) || openId === idx) m.openPopup();
+			}
+		});
+		isInitialLoad = false;
+	}
+	
+	/* -------------------------------------------------------------------------
+	 * POPULATE YEAR DROP DOWN on the map
+	 * Function 
+	 --------------------------------------------------------------------------*/		
     function populateYearDropdown() {
         const s = document.getElementById('year-select');
         if (!s) return;
@@ -364,4 +544,3 @@
 </script>
 </body>
 </html>
-
