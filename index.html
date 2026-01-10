@@ -171,6 +171,18 @@
 			
 			<div class="pt-1 border-t border-gray-100">
 				<div class="text-[10px] font-bold text-gray-400 uppercase mb-1">Track Control:</div>
+				<div class="search-group" style="display: flex; gap: 4px; margin-bottom: 8px; align-items: center;">
+					<input type="text" id="power-search" 
+						   placeholder="e.g: title:<>,year:<>,activity:..." 
+						   onkeydown="if(event.key === 'Enter') handleDeepLink()"
+						   style="flex-grow: 1; background: #1f2937; color: white; border: 1px solid #374151; padding: 4px 8px; border-radius: 4px; font-size: 11px; height: 24px;">
+					
+					<button onclick="clearPowerSearch()" 
+							title="Clr Tracks & Search"
+							style="background: none; border: none; cursor: pointer; font-size: 11px; padding: 0 5px; line-height: 24px;">
+							❌
+					</button>
+				</div>
 				<div class="grid grid-cols-2 gap-1.5">
 					<button id="show-all-tracks-btn" class="filter-button bg-emerald-600 text-white border-none" onclick="showAllTracks()">🗺️ ALL</button>
 					<button id="clear-tracks-btn" class="filter-button bg-gray-300 text-white border-none cursor-not-allowed" onclick="clearAllTracks()">🗑️ CLR</button>
@@ -234,58 +246,73 @@
 		}
 	}
 
-    async function loadConfig() {
-        const response = await fetch(`${ASSET_BASE}/config.js?t=${new Date().getTime()}`);
-        if (!response.ok) throw new Error("Could not find config.js on GitHub.");
-        const text = await response.text();
-        
-        const keyMatch = text.match(/MAPTILER_KEY\s*=\s*['"]([^'"]+)['"]/);
-        const urlMatch = text.match(/SHEETS_CSV_URL\s*=\s*['"]([^'"]+)['"]/);
-        
-        if (keyMatch && urlMatch) {
-            MAPTILER_KEY = keyMatch[1];
-            SHEETS_CSV_URL = urlMatch[1];
-        } else {
-            throw new Error("config.js exists but variables are unreadable.");
-        }
-    }
-
 	/* -------------------------------------------------------------------------
-	 * FETCH SHEET DATA: The core logic to get data from Google
+	 * LOAD CONFIG load config.ts parameters:
+	 *   - MAPTILER_KEY
+	 *   - GOOGLE_SHEETS_URL holding the activities basic data
 	 --------------------------------------------------------------------------*/
-	async function fetchSheetData() {
-		try {
-			if (!SHEETS_CSV_URL) await loadConfig(); 
-			
-			const response = await fetch(`${SHEETS_CSV_URL}&t=${new Date().getTime()}`);
-			const csvText = await response.text();
-			const lines = csvText.split(/\r?\n/);
-			const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
-
-			photoMarkers = lines.slice(1).filter(l => l.trim() !== "").map(line => {
-				const values = line.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/);
-				const obj = {};
-				headers.forEach((h, i) => {
-					let val = values[i] ? values[i].replace(/^"|"$/g, '').trim() : "";
-					if (h === 'lat' || h === 'lon') val = parseFloat(val);
-					obj[h] = val;
-				});
-				return obj;
-			});
-
-			if (!map) {
-				initMap();
-			} else {
-				populateYearDropdown();
-				renderMarkers();
-			}
-			
-			return true; // <--- This tells reloadData "I am done!"
-		} catch (e) {
-			console.error("Fetch Error:", e);
-			return false; // <--- This tells reloadData "Something went wrong"
+	async function loadConfig() {
+		const response = await fetch(`${ASSET_BASE}/config.js?t=${new Date().getTime()}`);
+		if (!response.ok) throw new Error("Could not find config.js on GitHub.");
+		const text = await response.text();
+		
+		const keyMatch = text.match(/MAPTILER_KEY\s*=\s*['"]([^'"]+)['"]/);
+		const urlMatch = text.match(/SHEETS_CSV_URL\s*=\s*['"]([^'"]+)['"]/);
+		
+		if (keyMatch && urlMatch) {
+			MAPTILER_KEY = keyMatch[1];
+			SHEETS_CSV_URL = urlMatch[1];
+		} else {
+			throw new Error("config.js exists but variables are unreadable.");
 		}
 	}
+
+/* -------------------------------------------------------------------------
+ * FETCH SHEET DATA: The core logic to get data from Google
+ --------------------------------------------------------------------------*/
+async function fetchSheetData() {
+	try {
+		if (!SHEETS_CSV_URL) await loadConfig(); 
+		
+		const response = await fetch(`${SHEETS_CSV_URL}&t=${new Date().getTime()}`);
+		const csvText = await response.text();
+		const lines = csvText.split(/\r?\n/);
+		const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
+
+		photoMarkers = lines.slice(1).filter(l => l.trim() !== "").map(line => {
+			const values = line.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/);
+			const obj = {};
+			headers.forEach((h, i) => {
+				let val = values[i] ? values[i].replace(/^"|"$/g, '').trim() : "";
+				if (h === 'lat' || h === 'lon') val = parseFloat(val);
+				obj[h] = val;
+			});
+			return obj;
+		});
+
+		if (!map) {
+			initMap();
+		} else {
+			populateYearDropdown();
+			renderMarkers(); // This creates the markers (currentMarkers)
+		}
+		
+		// --- THE DEEP LINK TRIGGER ---
+		// We call it here because photoMarkers and currentMarkers are now ready!
+		const urlParams = new URLSearchParams(window.location.search);
+		if (urlParams.toString() !== "") {
+			// If there is a Deep Link in the URL, re-apply it
+			handleDeepLink();
+		} else {
+			// Otherwise, re-apply the current Sidebar filters (Year/Activity)
+			applyViewFilter(null, false); // but do NOT automatically load tracks 
+		}		
+		return true; 
+	} catch (e) {
+		console.error("Fetch Error:", e);
+		return false; 
+	}
+}
 
 	/* -------------------------------------------------------------------------
 	 * INITIAL DATA FETCH: Only called once on page load
@@ -336,50 +363,89 @@
 		});
 	};
 
-    function initMap() {
-        const startPos = [photoMarkers[0].lat, photoMarkers[0].lon];
-        map = L.map('map', { center: startPos, zoom: 11, zoomControl: false });
-        
-        overviewLayer = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', { maxZoom: 17 }).addTo(map);
-        detailLayer = L.tileLayer(`https://api.maptiler.com/maps/outdoor-v4/{z}/{x}/{y}@2x.png?key=${MAPTILER_KEY}`, { tileSize: 512, zoomOffset: -1, maxZoom: 19 });
-        
-        hikingLayer = L.tileLayer('https://tile.waymarkedtrails.org/hiking/{z}/{x}/{y}.png');
-        cyclingLayer = L.tileLayer('https://tile.waymarkedtrails.org/mtb/{z}/{x}/{y}.png');
+	/* -------------------------------------------------------------------------
+	 * INIT MAP define layers, place the appropriate map (overview or detail).
+	 --------------------------------------------------------------------------*/
+	function initMap() {
+		// Start at a generic point (e.g., center of Europe or [0,0]) 
+		// because we will immediately 'fly' to the right spot in the next step.
+		const startPos = [48.18, 14.17]; // Linz/Donau
+		map = L.map('map', { center: startPos, zoom: 11, zoomControl: false });
+		
+		overviewLayer = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', { maxZoom: 17 }).addTo(map);
+		detailLayer = L.tileLayer(`https://api.maptiler.com/maps/outdoor-v4/{z}/{x}/{y}@2x.png?key=${MAPTILER_KEY}`, { tileSize: 512, zoomOffset: -1, maxZoom: 19 });
+		
+		hikingLayer = L.tileLayer('https://tile.waymarkedtrails.org/hiking/{z}/{x}/{y}.png');
+		cyclingLayer = L.tileLayer('https://tile.waymarkedtrails.org/mtb/{z}/{x}/{y}.png');
 
-        map.on('zoomend', () => {
+		map.on('zoomend', () => {
 			const currentZoom = map.getZoom();
 				
 			// Update the Zoom number inside of gear wheel panel
 			const zDisp = document.getElementById('zoom-level-display');
 			if (zDisp) zDisp.innerText = currentZoom;
 				
-            if (currentZoom >= switchThreshold) {
-                if (!map.hasLayer(detailLayer)) { 
-                    detailLayer.addTo(map); 
-                    map.removeLayer(overviewLayer); 
-                    hikingLayer.bringToFront();
-                    cyclingLayer.bringToFront();
-                }
-            } else {
-                if (!map.hasLayer(overviewLayer)) { 
-                    overviewLayer.addTo(map); 
-                    map.removeLayer(detailLayer); 
-                    hikingLayer.bringToFront();
-                    cyclingLayer.bringToFront();
-                }
-            }
-        });
+			if (currentZoom >= switchThreshold) {
+				if (!map.hasLayer(detailLayer)) { 
+					detailLayer.addTo(map); 
+					map.removeLayer(overviewLayer); 
+					hikingLayer.bringToFront();
+					cyclingLayer.bringToFront();
+				}
+			} else {
+				if (!map.hasLayer(overviewLayer)) { 
+					overviewLayer.addTo(map); 
+					map.removeLayer(detailLayer); 
+					hikingLayer.bringToFront();
+					cyclingLayer.bringToFront();
+				}
+			}
+		});
 
-        L.control.zoom({ position: 'bottomleft' }).addTo(map);
-        setupEvents();
-        populateYearDropdown();
-        renderMarkers();
-    }
+		//L.control.zoom({ position: 'bottomleft' }).addTo(map);
+		setupEvents();
+		populateYearDropdown();
+		renderMarkers();
+		
+		// Now that markers are rendered, decide where to look
+		const linkHandled = handleDeepLink(); 
+		if (!linkHandled) {
+			// If no deep link, go to the first visible marker based on sidebar
+			syncToFirstVisible();
+		}
+	}
+
+	/* -------------------------------------------------------------------------
+	 * SETUP the view to the first visible Marker. Spot at fixed ZOOM 11
+	 --------------------------------------------------------------------------*/
+	window.syncToFirstVisible = function() {
+		// 1. Find the first marker that survives current Sidebar filters
+		const currentSelection = photoMarkers.filter((p) => {
+			const rawAct = (p.activity) ? p.activity.toLowerCase().trim() : '';
+			const activityKey = ICONS_MAP.hasOwnProperty(rawAct) ? rawAct : 'unknown';
+			const yearMatch = (activeYear === 'All' || p.year.toString() === activeYear);
+			const filterMatch = (activityKey === 'unknown') || activeFilters[activityKey];
+			return yearMatch && filterMatch;
+		});
+
+		if (currentSelection.length > 0) {
+			const leader = currentSelection[0];
+			const idx = photoMarkers.indexOf(leader);
+			
+			// 2. Center and Zoom (using your preferred zoom 11)
+			map.flyTo([leader.lat, leader.lon], 11, { duration: 1.5 });
+
+			// 3. Open the popup
+			if (allMarkers[idx]) {
+				setTimeout(() => allMarkers[idx].openPopup(), 1600);
+			}
+		}
+	};
 
 	/* -------------------------------------------------------------------------
 	 * SETUP EVENTS assigns the handlefunctions to the defined events.
 	 --------------------------------------------------------------------------*/
-    function setupEvents() {
+	function setupEvents() {
 		document.querySelectorAll('[data-activity]').forEach(btn => {
 				btn.onclick = () => {
 					// 1. Get the key (e.g., 'trip') from the button
@@ -395,28 +461,20 @@
 					renderMarkers();
 				};
 			});
-        document.getElementById('hike-layer-btn').onclick = function() {
-            map.hasLayer(hikingLayer) ? map.removeLayer(hikingLayer) : hikingLayer.addTo(map);
-            this.classList.toggle('filter-button-active');
-        };
-        document.getElementById('bike-layer-btn').onclick = function() {
-            map.hasLayer(cyclingLayer) ? map.removeLayer(cyclingLayer) : cyclingLayer.addTo(map);
-            this.classList.toggle('filter-button-active');
-        };
-        document.getElementById('threshold-slider').oninput = (e) => {
-            switchThreshold = parseFloat(e.target.value);
-            document.getElementById('threshold-display').innerText = switchThreshold;
-        };
-    }
-
-    window.clearAllTracks = function() {
-        Object.keys(loadedTracks).forEach(idx => {
-            map.removeLayer(loadedTracks[idx].group);
-        });
-        loadedTracks = {};
-        renderMarkers();
-    };
-
+		document.getElementById('hike-layer-btn').onclick = function() {
+			map.hasLayer(hikingLayer) ? map.removeLayer(hikingLayer) : hikingLayer.addTo(map);
+			this.classList.toggle('filter-button-active');
+		};
+		document.getElementById('bike-layer-btn').onclick = function() {
+			map.hasLayer(cyclingLayer) ? map.removeLayer(cyclingLayer) : cyclingLayer.addTo(map);
+			this.classList.toggle('filter-button-active');
+		};
+		document.getElementById('threshold-slider').oninput = (e) => {
+			switchThreshold = parseFloat(e.target.value);
+			document.getElementById('threshold-display').innerText = switchThreshold;
+		};
+	}
+	
 	/* -------------------------------------------------------------------------
 	 * LOAD GPX TRACK toggles tracks on and off. Optionally flying to bounds
 	 --------------------------------------------------------------------------*/
@@ -467,6 +525,155 @@
 		trackGroup.addLayer(trackLayer);
 		return trackLayer;
 	};
+
+	/* -------------------------------------------------------------------------
+	 * HANDLE DEEP LINK extracts and applies the logic of parameterized search
+	 * Handles links like: ?album=Abc123&activity=ski
+	 --------------------------------------------------------------------------*/
+	window.handleDeepLink = function() {
+		const searchBox = document.getElementById('power-search');
+		if (!searchBox) return;
+
+		// --- PART 1: INITIAL URL LOAD (The Junk Filter) ---
+		// We only do this if the box is currently empty
+		if (searchBox.value.trim() === "") {
+			let urlParams;
+			try {
+				urlParams = new URLSearchParams(window.parent.location.search);
+				if (urlParams.toString() === "") urlParams = new URLSearchParams(window.location.search);
+			} catch (e) {
+				urlParams = new URLSearchParams(window.location.search);
+			}
+
+			const validKeys = ['title', 'activity', 'album', 'coords', 'year'];
+			const hasValidKeys = validKeys.some(key => urlParams.has(key));
+			
+			if (hasValidKeys) {
+				let displayQuery = "";
+				validKeys.forEach(key => {
+					const val = urlParams.get(key);
+					if (val) displayQuery += `${key}:${val} `;
+				});
+				searchBox.value = displayQuery.trim();
+			}
+		}
+
+		// --- PART 2: THE SEARCH ENGINE (Manual or Auto) ---
+		const query = searchBox.value.toLowerCase().trim();
+		if (query === "") return;
+
+		let matches = photoMarkers;
+
+		// Forgiving helper: stops at space OR comma
+		const getParam = (key) => {
+			const regex = new RegExp(`${key}:([^ ,]+)`, 'i');
+			const match = query.match(regex);
+			return match ? match[1] : null;
+		};
+
+		const qTitle    = getParam('title');
+		const qActivity = getParam('activity');
+		const qAlbum    = getParam('album');
+		const qCoords   = getParam('coords');
+		const qYear     = getParam('year');
+
+		// Filtering logic
+		if (qTitle)    matches = matches.filter(p => p.title && p.title.toLowerCase().includes(qTitle));
+		if (qActivity) matches = matches.filter(p => p.activity && p.activity.toLowerCase() === qActivity);
+		if (qAlbum)    matches = matches.filter(p => p.album && p.album.toLowerCase().endsWith(qAlbum));
+		if (qCoords)   matches = matches.filter(p => (p.lat + "," + p.lon) === qCoords);
+		if (qYear)     matches = matches.filter(p => p.year && p.year.toString() === qYear);
+
+		// --- PART 3: EXECUTION ---
+		if (matches.length > 0) {
+			// This is the engine that clears tracks and flies the camera
+			applyViewFilter(matches, true); // TRUE = Load tracks and open popup
+			true; // Tells the initial load we found a link
+		} else {
+			console.log("Search executed but 0 results found for:", query);
+		}
+	};
+	
+	/* -------------------------------------------------------------------------
+	 * APPLY power-search clear button
+	 --------------------------------------------------------------------------*/
+	window.clearPowerSearch = function() {
+		const searchBox = document.getElementById('power-search');
+		if (searchBox) searchBox.value = "";
+		
+		// Wipe any tracks from a previous search
+		clearAllTracks(); 
+		
+		// Clear the URL junk
+		const newUrl = window.location.protocol + "//" + window.location.host + window.location.pathname;
+		window.history.pushState({path:newUrl}, '', newUrl);
+
+		// Sync back to the first visible marker in the current sidebar view
+		syncToFirstVisible();
+	};
+	
+	/* -------------------------------------------------------------------------
+	 * APPLY VIEW FILTER translates the selected markers onto the map,
+	 * opens the first popup (leaflet can open only one) and shows all available
+	 * tracks!
+	 --------------------------------------------------------------------------*/
+window.applyViewFilter = function(customMatches = null, loadTracks = false) {
+		// If we have customMatches (Deep Link), use them. 
+		// Otherwise, use the standard Sidebar filters.
+		const targets = customMatches || photoMarkers.filter((p) => {
+			const rawAct = (p.activity) ? p.activity.toLowerCase().trim() : '';
+			const activityKey = ICONS_MAP.hasOwnProperty(rawAct) ? rawAct : 'unknown';
+			const yearMatch = (activeYear === 'All' || p.year.toString() === activeYear);
+			const filterMatch = (activityKey === 'unknown') || activeFilters[activityKey];
+			return yearMatch && filterMatch;
+		});
+		
+		// CRITICAL: Always clear the map BEFORE starting a new filter/search
+		clearAllTracks();
+
+		if (targets.length === 0) return;
+
+		let runningBounds = L.latLngBounds();
+		let processedCount = 0;
+
+		const finalize = () => {
+			processedCount++;
+			if (processedCount === targets.length && runningBounds.isValid()) {
+				map.flyToBounds(runningBounds, { padding: [40, 40], duration: 1.5 });
+				
+				// OPEN POPUP IF:
+				// 1. It's a Deep Link/Power Search (customMatches exists)
+				// 2. OR it's the Initial Load (Sidebar is "All" and no tracks are loaded yet)
+				const isInitialLoad = !customMatches && activeYear === 'All'; 
+				
+				if (customMatches || isInitialLoad) {
+					const firstMarkerData = targets[0];
+					const firstIdx = photoMarkers.indexOf(firstMarkerData);
+					if (allMarkers[firstIdx]) {
+						// Small delay to let flyToBounds finish so the popup is centered
+						setTimeout(() => allMarkers[firstIdx].openPopup(), 1600);
+					}
+				}
+			}
+		};
+		
+		targets.forEach(p => {
+			const idx = photoMarkers.indexOf(p);
+			runningBounds.extend([p.lat, p.lon]); // include all markers into bounds
+
+			if (loadTracks && p.gpx && p.gpx.length > 5) {
+				const track = loadGpxTrack(idx, false);
+				track.on('loaded', e => {
+					const gb = e.target.getBounds();
+					if (gb.isValid()) runningBounds.extend(gb);
+					finalize();
+				});
+				track.on('error', finalize);
+			} else {
+				finalize();
+			}
+		});
+	};
 	
 	/* -------------------------------------------------------------------------
 	 * SHOW ALL TRACKS that are not already visible and match the active filters
@@ -475,7 +682,10 @@
 	window.showAllTracks = function() {
 		let runningBounds = L.latLngBounds();
 		let processedCount = 0;
-
+		// power-search conflicts with showALL - so clear it!
+		const searchBox = document.getElementById('power-search');
+			if (searchBox) searchBox.value = "";
+			
 		// 1. Identify all markers that match current filters AND have a GPX file
 		const tracksToProcess = photoMarkers.filter((p) => {
 			const rawAct = (p.activity) ? p.activity.toLowerCase().trim() : '';
@@ -494,7 +704,7 @@
 		const finalizeMasterView = () => {
 			processedCount++;
 			if (processedCount === tracksToProcess.length && runningBounds.isValid()) {
-				map.flyToBounds(runningBounds, { padding: [50, 50], duration: 1.5 });
+				map.flyToBounds(runningBounds, { padding: [40, 40], duration: 1.5 });
 			}
 		};
 
@@ -515,7 +725,7 @@
 					if (gb.isValid()) {
 						runningBounds.extend(gb);
 						// Cumulative "stretching" move
-						map.flyToBounds(runningBounds, { padding: [60, 60], duration: 0.8 });
+						map.flyToBounds(runningBounds, { padding: [40, 40], duration: 0.8 });
 					}
 					finalizeMasterView();
 				});
