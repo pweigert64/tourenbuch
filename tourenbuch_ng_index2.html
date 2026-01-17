@@ -425,40 +425,41 @@
 	    const p = photoMarkers[idx];
 	    const tourYear = p.year.toString();
 	
-	    // 1. SYNC YEAR: If the map is filtered for a different year, switch it first
+	    // 1. SYNC YEAR: Falls nötig, Filter umschalten
 	    if (activeYear !== 'All' && activeYear !== tourYear) {
-	        console.log(`Switching filter to match tour year: ${tourYear}`);
 	        window.updateActiveYear(tourYear);
 	    }
 	
-	    // 2. SWITCH VIEW: Change from Portal to Map
+	    // 2. VIEW WECHSELN
 	    switchView('map');
 	    
-	    // 3. WAIT & FLY: Delay slightly so Leaflet can render the markers
+	    // 3. WAIT & FLY: Kurzer Puffer für das DOM-Update, dann Flug
 	    setTimeout(() => {
-	        // Fly to location
 	        map.flyTo([p.lat, p.lon], 11, { duration: 1.2 });
 	
-	        // 4. FIND & OPEN POPUP: Search through the markers currently on the map
-	        // We use a retry-mechanism to ensure the marker is really there
-	        let attempts = 0;
-	        const findAndOpen = () => {
-	            let found = false;
-	            map.eachLayer(layer => {
-	                if (layer instanceof L.Marker && layer._idx === idx) {
-	                    setTimeout(() => layer.openPopup(), 1000); // Open when flight ends
-	                    found = true;
+	        // 4. PRÄZISE POPUP-LOGIK: Warten bis der Flug fertig ist
+	        map.once('moveend', () => {
+	            let attempts = 0;
+	            const tryOpen = () => {
+	                let found = false;
+	                map.eachLayer(layer => {
+	                    // Wir suchen exakt den Marker mit unserer gespeicherten ID
+	                    if (layer instanceof L.Marker && layer._idx === idx) {
+	                        layer.openPopup();
+	                        found = true;
+	                    }
+	                });
+	
+	                // Falls renderMarkers() noch nicht fertig war, versuchen wir es kurz erneut
+	                if (!found && attempts < 10) {
+	                    attempts++;
+	                    setTimeout(tryOpen, 100);
 	                }
-	            });
+	            };
+	            tryOpen();
+	        });
 	
-	            if (!found && attempts < 5) {
-	                attempts++;
-	                setTimeout(findAndOpen, 200); // Try again if render was slow
-	            }
-	        };
-	        findAndOpen();
-	
-	        // 5. AUTO-LOAD TRACK
+	        // 5. TRACK LADEN
 	        if (p.gpx && p.gpx.length > 5 && !loadedTracks[idx]) {
 	            loadGpxTrack(idx, true);
 	        }
@@ -865,16 +866,19 @@
 		
 		// cleanup existing Tracks
 		Object.keys(loadedTracks).forEach(idx => {
-			const p = photoMarkers[idx];
-			const rawAct = (p.activity) ? p.activity.toLowerCase().trim() : '';
-			const activityKey = ICONS_MAP.hasOwnProperty(rawAct) ? rawAct : 'unknown';
-			
-			// If the filter for this track is now OFF, remove the track
-			if (!activeFilters[activityKey]) {
-				map.removeLayer(loadedTracks[idx].group);
-				delete loadedTracks[idx];
-			}
-		});
+		        const p = photoMarkers[idx];
+		        const rawAct = p.activity?.toLowerCase().trim();
+		        const activityKey = ICONS_MAP.hasOwnProperty(rawAct) ? rawAct : 'unknown';
+		        
+		        const yearMatch = (activeYear === 'All' || p.year.toString() === activeYear);
+		        const filterMatch = activeFilters[activityKey];
+		
+		        // Wenn Jahr oder Aktivität nicht mehr passen -> Track weg
+		        if (!yearMatch || !filterMatch) {
+		            map.removeLayer(loadedTracks[idx].group);
+		            delete loadedTracks[idx];
+		        }
+		    });
 		
 		// stable clear Button logic ---
 		const clearBtn = document.getElementById('clear-tracks-btn');
@@ -1004,10 +1008,10 @@
 	    s.innerHTML = '';
 	    yrs.forEach(y => s.add(new Option(y, y)));
 	    
-	    // FIXED: Set initial value to current activeYear
+	    // Set initial value to current activeYear
 	    s.value = activeYear;
-	
-	    // FIXED: Use the central sync function
+
+		// Use the central sync function
 	    s.onchange = (e) => { window.updateActiveYear(e.target.value); };
 	}
 	
@@ -1018,6 +1022,7 @@
 	
 </body>
 </html>
+
 
 
 
