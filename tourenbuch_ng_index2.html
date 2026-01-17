@@ -194,4 +194,165 @@
             const img = (p.img && p.img.length > 4) ? `${ASSET_BASE}/${p.year}/img/${p.img}` : '';
             grid.innerHTML += `
                 <div class="bg-white rounded-xl overflow-hidden shadow-sm hover:translate-y-[-4px] transition-all">
-                    <img src="${img}" loading="lazy" class="w-full aspect-video object-cover" onerror="this.src='https://via.
+                    <img src="${img}" loading="lazy" class="w-full aspect-video object-cover" onerror="this.src='https://via.placeholder.com/400x225?text=No+Image'">
+                    <div class="p-4">
+                        <div class="flex justify-between items-start mb-1">
+                            <h3 class="font-bold text-sm h-10 overflow-hidden text-gray-800">${p.title}</h3>
+                            <span class="noto">${ICONS_MAP[p.activity?.toLowerCase().trim()] || '❓'}</span>
+                        </div>
+                        <div class="text-[10px] text-gray-400 font-bold mb-4 uppercase tracking-tighter">${p.date} • ${p.tags || ''}</div>
+                        <div class="flex gap-2">
+                            <a href="${p.album}" target="_blank" class="flex-1 bg-indigo-50 text-indigo-700 text-center py-2 rounded-lg text-[10px] font-bold">ALBUM</a>
+                            <button onclick="jumpToMarker(${photoMarkers.indexOf(p)})" class="flex-1 bg-gray-900 text-white py-2 rounded-lg text-[10px] font-bold">MAP</button>
+                        </div>
+                    </div>
+                </div>`;
+        });
+    }
+
+    function jumpToMarker(idx) {
+        switchView('map');
+        const p = photoMarkers[idx];
+        map.flyTo([p.lat, p.lon], 11);
+        const m = currentMarkers.find(m => m._idx === idx);
+        if(m) setTimeout(() => m.openPopup(), 1200);
+    }
+
+    /* --- RE-IMPLEMENTED MAP LOGIC (RETAINING ORIGINAL POPUP) --- */
+    function initMap() {
+        if(map) return;
+        map = L.map('map', { center: [48.18, 14.17], zoom: 11, zoomControl: false });
+        overviewLayer = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png').addTo(map);
+        detailLayer = L.tileLayer(`https://api.maptiler.com/maps/outdoor-v4/{z}/{x}/{y}@2x.png?key=${MAPTILER_KEY}`, { tileSize: 512, zoomOffset: -1 });
+
+        map.on('zoomend', () => {
+            const z = map.getZoom();
+            document.getElementById('zoom-level-display').innerText = z;
+            if (z >= switchThreshold) {
+                if (!map.hasLayer(detailLayer)) { detailLayer.addTo(map); map.removeLayer(overviewLayer); }
+            } else {
+                if (!map.hasLayer(overviewLayer)) { overviewLayer.addTo(map); map.removeLayer(detailLayer); }
+            }
+        });
+    }
+
+    function renderMarkers() {
+        if (!map) return;
+        let openId = null;
+        currentMarkers.forEach(m => { 
+            if(m.getPopup() && m.getPopup().isOpen()) openId = m._idx; 
+            map.removeLayer(m); 
+        });
+        currentMarkers = [];
+
+        photoMarkers.forEach((p, i) => {
+            const idx = i;
+            const rawAct = (p.activity) ? p.activity.toLowerCase().trim() : '';
+            const activityKey = ICONS_MAP.hasOwnProperty(rawAct) ? rawAct : 'unknown';
+            const displayIcon = ICONS_MAP[rawAct] || '❓';
+
+            if ((activeYear === 'All' || p.year.toString() === activeYear) && activeFilters[activityKey]) {
+                
+                // ORIGINAL POPUP LOGIC
+                const hasAlbum = (p.album && p.album.startsWith('http'));
+                const albumBtnClass = hasAlbum ? 'bg-indigo-900' : 'bg-gray-300 cursor-not-allowed';
+                const albumBtnText = hasAlbum ? '📸 ALBUM' : '🚫 NO ALBUM';
+                const albumBtnLink = hasAlbum ? `href="${p.album}" target="_blank"` : 'onclick="return false;"';
+
+                const hasTrack = (p.gpx && p.gpx.length > 5);
+                const active = !!loadedTracks[idx];
+                let trackBtnClass = hasTrack ? (active ? 'bg-gray-500' : 'bg-emerald-700') : 'bg-gray-300 cursor-not-allowed';
+                let trackBtnText = hasTrack ? (active ? '❌ HIDE' : '🗺️ TRACK') : '🚫 NO TRACK';
+
+                const imgHtml = (p.img && p.img.length > 4) ? `<img src="${ASSET_BASE}/${p.year}/img/${p.img}" class="photo-popup-img">` : '';
+
+                const icon = L.divIcon({
+                    className: `emoji-marker-outer marker-${activityKey.replace('+', '-')}`,
+                    html: `<span class="emoji-marker-inner">${displayIcon}</span>`,
+                    iconSize: [26, 26]
+                });
+
+                const content = `
+                    <div class="text-center">
+                        ${imgHtml}
+                        <div class="popup-title font-bold text-[10px] my-1">${p.title}</div>
+                        <div class="flex gap-1 mt-2">
+                            <a ${albumBtnLink} class="flex-1 p-2 ${albumBtnClass} text-white text-[9px] font-bold rounded text-center">${albumBtnText}</a>
+                            <button onclick="${hasTrack ? `loadGpxTrack(${idx})` : ''}" class="flex-1 p-2 ${trackBtnClass} text-white text-[9px] font-bold rounded">${trackBtnText}</button>
+                        </div>
+                    </div>`;
+
+                const m = L.marker([p.lat, p.lon], { icon }).bindPopup(content)
+                    .bindTooltip(p.title, { direction: 'top', offset: [0, -15], className: 'hover-title' }).addTo(map);
+                m._idx = idx;
+                currentMarkers.push(m);
+                if(openId === idx) m.openPopup();
+            }
+        });
+    }
+
+    /* --- GPX & TRACKS --- */
+    window.loadGpxTrack = function(idx, shouldZoom = true) {
+        const p = photoMarkers[idx];
+        if (loadedTracks[idx]) { map.removeLayer(loadedTracks[idx].group); delete loadedTracks[idx]; renderMarkers(); return; }
+
+        const trackGroup = L.featureGroup().addTo(map);
+        const color = COLORS[p.activity?.toLowerCase().trim()] || '#6b7280';
+        
+        new L.GPX(`${ASSET_BASE}/${p.year}/gpx/${p.gpx}`, {
+            async: true, marker_options: { startIconUrl: '', endIconUrl: '' },
+            polyline_options: { color: color, weight: 5, opacity: 0.9 }
+        }).on('loaded', e => {
+            if (shouldZoom) map.flyToBounds(e.target.getBounds(), { padding: [40, 40] });
+            loadedTracks[idx] = { group: trackGroup };
+            renderMarkers();
+            updateClearButton();
+        }).addTo(trackGroup);
+    };
+
+    window.showAllTracks = function() {
+        photoMarkers.forEach((p, i) => {
+            if ((activeYear === 'All' || p.year.toString() === activeYear) && p.gpx && p.gpx.length > 5) loadGpxTrack(i, false);
+        });
+    };
+
+    window.clearAllTracks = function() {
+        Object.keys(loadedTracks).forEach(idx => map.removeLayer(loadedTracks[idx].group));
+        loadedTracks = {};
+        renderMarkers();
+        updateClearButton();
+    };
+
+    function updateClearButton() {
+        const btn = document.getElementById('clear-tracks-btn');
+        const has = Object.keys(loadedTracks).length > 0;
+        btn.classList.toggle('bg-red-600', has); btn.classList.toggle('bg-gray-300', !has); btn.classList.toggle('cursor-not-allowed', !has);
+    }
+
+    /* --- UTILS --- */
+    function setupEvents() {
+        document.querySelectorAll('[data-activity]').forEach(btn => {
+            btn.onclick = () => {
+                const act = btn.dataset.activity;
+                activeFilters[act] = !activeFilters[act];
+                btn.classList.toggle('filter-button-active', activeFilters[act]);
+                renderMarkers();
+            };
+        });
+        document.getElementById('threshold-slider').oninput = (e) => {
+            switchThreshold = e.target.value;
+            document.getElementById('threshold-display').innerText = switchThreshold;
+        };
+    }
+
+    function togglePanel(id) {
+        const p = document.getElementById(id);
+        const isVisible = p.style.display === 'flex';
+        document.querySelectorAll('.pop-out-panel').forEach(el => el.style.display = 'none');
+        if (!isVisible) p.style.display = 'flex';
+    }
+
+    init();
+</script>
+</body>
+</html>
