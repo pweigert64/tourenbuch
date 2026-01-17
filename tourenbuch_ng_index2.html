@@ -1,143 +1,129 @@
 <!DOCTYPE html>
-<html lang="de">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Alpine Retrospective v45 - Portal</title>
-    
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;800&family=Noto+Color+Emoji&display=swap" rel="stylesheet">
+    <title>Alpine Retrospective Map v45 & Portal</title>
     
     <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet-gpx/1.7.0/gpx.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/leaflet-polylinedecorator@1.6.0/dist/leaflet.polylinedecorator.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
-
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;800&family=Noto+Color+Emoji&display=swap" rel="stylesheet">
+    
     <style>
-        /* --- GLOBAL & TYPO --- */
-        body { font-family: 'Inter', sans-serif; }
-        .noto-emoji { font-family: 'Noto Color Emoji', sans-serif; }
-
-        /* --- LAYOUT --- */
-        #main-layout { display: flex; height: 100vh; width: 100vw; overflow: hidden; }
+        /* RESET & SHARED LAYOUT */
+        html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; font-family: 'Inter', sans-serif; }
+        #main-container { display: flex; height: 100vh; width: 100vw; }
         
         /* SIDEBAR */
-        #sidebar { 
-            width: 240px; border-right: 1px solid #e5e7eb; background: white; 
-            display: flex; flex-direction: column; z-index: 50;
-        }
-        .year-btn { 
-            padding: 12px 24px; cursor: pointer; font-weight: 700; color: #64748b; 
-            border-left: 4px solid transparent; transition: all 0.2s;
-        }
-        .year-btn:hover { background: #f8fafc; color: #4f46e5; }
-        .year-btn.active { background: #eef2ff; color: #4f46e5; border-left-color: #4f46e5; }
+        #sidebar { width: 240px; background: white; border-right: 1px solid #e5e7eb; display: flex; flex-direction: column; z-index: 10001; }
+        .year-item { padding: 12px 24px; cursor: pointer; font-weight: 700; color: #64748b; border-left: 4px solid transparent; transition: 0.2s; }
+        .year-item:hover { background: #f8fafc; color: #4f46e5; }
+        .year-item.active { background: #eef2ff; color: #4f46e5; border-left-color: #4f46e5; }
 
         /* CONTENT AREA */
-        #content-area { flex-grow: 1; position: relative; background: #f9fafb; display: flex; flex-direction: column; }
+        #content-area { flex-grow: 1; display: flex; flex-direction: column; position: relative; }
+        #top-nav { height: 60px; background: white; border-bottom: 1px solid #e5e7eb; display: flex; align-items: center; justify-content: space-between; padding: 0 20px; z-index: 10000; }
         
-        /* TOP NAV */
-        #top-nav { 
-            height: 65px; border-bottom: 1px solid #e5e7eb; background: white; 
-            display: flex; align-items: center; justify-content: space-between; padding: 0 20px;
-        }
-
         /* VIEWS */
-        .view-container { flex-grow: 1; position: relative; overflow: hidden; }
-        #portal-view { 
-            position: absolute; inset: 0; overflow-y: auto; padding: 30px; 
-            display: block; /* Default visible */
-        }
-        #map-view { position: absolute; inset: 0; display: none; }
-        #map { width: 100%; height: 100%; }
+        #portal-view { position: absolute; inset: 60px 0 0 0; overflow-y: auto; padding: 25px; background: #f3f4f6; }
+        #map-view { position: absolute; inset: 60px 0 0 0; display: none; }
+        #map { width: 100%; height: 100%; background: #f3f4f6; }
 
-        /* PORTAL CARDS */
-        .grid-container { 
-            display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); 
-            gap: 25px; max-width: 1400px; margin: 0 auto; 
-        }
-        .trip-card { 
-            background: white; border-radius: 16px; overflow: hidden; 
-            box-shadow: 0 4px 20px rgba(0,0,0,0.06); transition: transform 0.3s ease;
-        }
-        .trip-card:hover { transform: translateY(-8px); }
-        .trip-card img { width: 100%; aspect-ratio: 16/9; object-fit: cover; }
-        
-        /* REUSE YOUR MARKER STYLES */
-        .emoji-marker-outer { width: 26px!important; height: 26px!important; border-radius: 50%; border: 2px solid white; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 5px rgba(0,0,0,0.2); }
-        .marker-ski { background: #4f46e5; } .marker-hike { background: #b54708; } .marker-climb { background: #dc2626; } 
-        .marker-bike { background: #065f46; } .marker-bike-hike { background: #f97316; } .marker-trip { background: #9333ea; } 
-        .emoji-marker-inner { font-size: 11pt; background: white; border-radius: 50%; width: 18px; height: 18px; display: flex; align-items: center; justify-content: center; }
-
-        /* FLOATING MAP PANELS (Your original styles) */
+        /* REUSE ALL YOUR ORIGINAL FLOATING STYLES */
         .floating-container { position: absolute; z-index: 9999; display: flex; flex-direction: column; align-items: flex-end; gap: 10px; }
         .pop-out-panel { background: white; padding: 15px; border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.2); min-width: 240px; display: none; flex-direction: column; gap: 10px; border: 1px solid #e5e7eb; max-height: 42dvh; overflow-y: auto; }
         .circle-toggle { background: #4f46e5; color: white; width: 50px; height: 50px; border-radius: 50%; cursor: pointer; border: 3px solid white; font-size: 1.5rem; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 10px rgba(0,0,0,0.2); }
+        
+        /* POPUP & MARKER STYLES (Identical to your original) */
+        .photo-popup-img { width: 100%; border-radius: 0.4rem; object-fit: cover; height: 120px; margin-bottom: 5px; }
+        .hover-title { background: rgba(0, 0, 0, 0.8) !important; color: white !important; border: none !important; border-radius: 4px; padding: 4px 8px; font-size: 13px; }
+        .emoji-marker-outer { width: 26px!important; height: 26px!important; border-radius: 50%; border: 2px solid white; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 5px rgba(0,0,0,0.2); }
+        .marker-ski { background: #4f46e5; } .marker-hike { background: #b54708; } .marker-climb { background: #dc2626; } .marker-bike { background: #065f46; } .marker-trip { background: #9333ea; }
+        .emoji-marker-inner { font-size: 11pt; background: white; border-radius: 50%; width: 18px; height: 18px; display: flex; align-items: center; justify-content: center; }
+        .track-label { background: rgba(255, 255, 255, 0.9); border: 1px solid #999; padding: 1px 5px; font-weight: bold; border-radius: 4px; font-size: 10px; color: #333; }
+        
+        /* PORTAL CARD STYLES */
+        .trip-card { background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
     </style>
 </head>
 <body>
 
-<div id="main-layout">
+<div id="main-container">
     <aside id="sidebar">
-        <div class="p-6 border-b flex items-center gap-3">
-            <span class="noto-emoji text-3xl">🏔️</span>
-            <span class="font-black text-gray-800 tracking-tighter">RETRO</span>
+        <div class="p-5 border-b flex items-center gap-2">
+            <span style="font-family: 'Noto Color Emoji'" class="text-2xl">🏔️</span>
+            <span class="font-extrabold tracking-tighter text-gray-800">RETROSPECTIVE</span>
         </div>
-        <div id="sidebar-years" class="flex-grow overflow-y-auto pt-4">
-            </div>
+        <div id="year-menu" class="flex-grow overflow-y-auto"></div>
     </aside>
 
     <div id="content-area">
-        <nav id="top-nav">
-            <div id="current-title" class="text-xl font-extrabold text-indigo-900 uppercase tracking-widest">Wird geladen...</div>
-            <div class="flex gap-2 bg-gray-100 p-1.5 rounded-2xl">
-                <button id="view-portal-btn" onclick="switchView('portal')" class="p-2 px-5 rounded-xl transition-all text-xl bg-white shadow-sm">🗓️</button>
-                <button id="view-map-btn" onclick="switchView('map')" class="p-2 px-5 rounded-xl transition-all text-xl opacity-50">🌍</button>
+        <header id="top-nav">
+            <div id="view-title" class="font-black text-indigo-600 text-lg uppercase">Portal</div>
+            <div class="flex gap-2 bg-gray-100 p-1 rounded-xl">
+                <button id="btn-portal" onclick="switchView('portal')" class="px-5 py-2 rounded-lg bg-white shadow-sm transition-all">🗓️</button>
+                <button id="btn-map" onclick="switchView('map')" class="px-5 py-2 rounded-lg opacity-50 transition-all">🌍</button>
             </div>
-        </nav>
+        </header>
 
-        <div class="view-container">
-            <section id="portal-view">
-                <div id="album-grid" class="grid-container"></div>
-            </section>
+        <section id="portal-view">
+            <div id="portal-grid" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 max-w-7xl mx-auto"></div>
+        </section>
 
-            <section id="map-view">
-                <div id="map"></div>
-                <div id="map-settings-group" class="floating-container" style="top: 15px; right: 15px;">
-                    <button class="circle-toggle" onclick="togglePanel('map-panel')">🗺️</button>
-                    <div id="map-panel" class="pop-out-panel">
-                        <div class="bg-indigo-50 p-3 rounded-lg flex flex-col gap-2 text-[10px] font-bold">
-                            <div class="flex justify-between border-b border-indigo-200 pb-1">
-                                <span class="text-indigo-600 uppercase">Zoom</span>
-                                <span id="zoom-level-display">11</span>
-                            </div>
-                            <input type="range" id="threshold-slider" min="1" max="17" value="16" step="1" class="w-full cursor-pointer">
+        <section id="map-view">
+            <div id="map"></div>
+            
+            <div id="map-settings-group" class="floating-container" style="top: 15px; right: 15px;">
+                <button class="circle-toggle" onclick="togglePanel('map-panel')">🗺️</button>
+                <div id="map-panel" class="pop-out-panel">
+                    <div class="bg-indigo-50 p-3 rounded-lg flex flex-col gap-2 text-[10px] font-bold">
+                        <div class="flex justify-between border-b border-indigo-200 pb-1">
+                            <span class="text-indigo-600 uppercase">Zoom</span>
+                            <span id="zoom-level-display">11</span>
                         </div>
+                        <input type="range" id="threshold-slider" min="1" max="17" value="16" step="1" class="w-full">
                     </div>
                 </div>
-            </section>
-        </div>
+            </div>
+
+            <div id="activity-settings-group" class="floating-container" style="bottom: 20px; right: 15px;">
+                <div id="activity-panel" class="pop-out-panel">
+                    <div class="grid grid-cols-6 gap-0.5 mb-2">
+                        <button class="filter-button filter-button-active p-1 text-base bg-indigo-600 text-white rounded" onclick="toggleActivity('ski', this)">❄️</button>
+                        <button class="filter-button filter-button-active p-1 text-base bg-indigo-600 text-white rounded" onclick="toggleActivity('hike', this)">🥾</button>
+                        <button class="filter-button filter-button-active p-1 text-base bg-indigo-600 text-white rounded" onclick="toggleActivity('climb', this)">⛰️</button>
+                        <button class="filter-button filter-button-active p-1 text-base bg-indigo-600 text-white rounded" onclick="toggleActivity('bike', this)">🚴</button>
+                        <button class="filter-button filter-button-active p-1 text-base bg-indigo-600 text-white rounded" onclick="toggleActivity('bike+hike', this)">🚵</button>
+                        <button class="filter-button filter-button-active p-1 text-base bg-indigo-600 text-white rounded" onclick="toggleActivity('trip', this)">🏛️</button>
+                    </div>
+                    <div class="grid grid-cols-2 gap-1.5">
+                        <button class="bg-emerald-600 text-white p-2 rounded text-[10px] font-bold" onclick="showAllTracks()">🗺️ SHOW ALL</button>
+                        <button id="clear-tracks-btn" class="bg-gray-300 text-white p-2 rounded text-[10px] font-bold cursor-not-allowed" onclick="clearAllTracks()">🗑️ CLEAR</button>
+                    </div>
+                </div>
+                <button class="circle-toggle" onclick="togglePanel('activity-panel')">⚙️</button>
+            </div>
+        </section>
     </div>
 </div>
 
 <script>
-    /* --- CONFIG & STATE --- */
+    /* --- RESTORED ALL YOUR CONSTANTS --- */
     const ASSET_BASE = 'https://raw.githubusercontent.com/pweigert64/tourenbuch/main';
     const COLORS = { 'ski': '#4f46e5', 'hike': '#b54708', 'climb': '#dc2626', 'bike': '#065f46', 'bike+hike': '#f97316', 'trip': '#9333ea', 'unknown': '#6b7280' };
     const ICONS_MAP = { 'ski': '❄️', 'hike': '🥾', 'climb': '⛰️', 'bike': '🚴', 'bike+hike': '🚵', 'trip': '🏛️' };
 
-    let map, photoMarkers = [], currentMarkers = [], loadedTracks = {}, allMarkers = [];
+    let map, overviewLayer, detailLayer;
+    let photoMarkers = [], currentMarkers = [], loadedTracks = {};
     let activeFilters = { ski: true, hike: true, climb: true, bike: true, 'bike+hike': true, 'trip': true, 'unknown': true };
-    let activeYear = 'All', currentView = 'portal', switchThreshold = 16;
-    let MAPTILER_KEY, SHEETS_CSV_URL;
+    let activeYear = 'All', switchThreshold = 16, MAPTILER_KEY, SHEETS_CSV_URL;
 
-    /* --- LOAD LOGIC --- */
     async function init() {
-        try {
-            await loadConfig();
-            await fetchSheetData();
-        } catch (e) { console.error("Init Error:", e); }
+        await loadConfig();
+        await fetchSheetData();
     }
 
     async function loadConfig() {
@@ -164,122 +150,160 @@
             return obj;
         });
 
-        // 1. Build Years
-        buildYearSidebar();
-        
-        // 2. Init Map in background
+        setupUI();
         initMap();
-
-        // 3. Set Default: Latest Year + Portal
         const latestYear = [...new Set(photoMarkers.map(p => p.year))].sort().reverse()[0];
         selectYear(latestYear);
     }
 
-    function buildYearSidebar() {
-        const container = document.getElementById('sidebar-years');
+    function setupUI() {
+        const menu = document.getElementById('year-menu');
         const yrs = ['All', ...new Set(photoMarkers.map(p => p.year.toString()))].sort().reverse();
-        container.innerHTML = yrs.map(y => `<div class="year-btn" id="btn-yr-${y}" onclick="selectYear('${y}')">${y}</div>`).join('');
+        menu.innerHTML = yrs.map(y => `<div class="year-item" id="yr-${y}" onclick="selectYear('${y}')">${y}</div>`).join('');
     }
 
     function selectYear(yr) {
         activeYear = yr;
-        document.querySelectorAll('.year-btn').forEach(b => b.classList.remove('active'));
-        document.getElementById(`btn-yr-${yr}`).classList.add('active');
-        document.getElementById('current-title').innerText = yr === 'All' ? 'Gesamte Historie' : `Expeditionen ${yr}`;
-        
+        document.querySelectorAll('.year-item').forEach(el => el.classList.remove('active'));
+        document.getElementById(`yr-${yr}`).classList.add('active');
         renderPortal();
-        renderMarkers(); // Always sync map markers
+        renderMarkers();
     }
 
-    function switchView(view) {
-        currentView = view;
-        document.getElementById('portal-view').style.display = view === 'portal' ? 'block' : 'none';
-        document.getElementById('map-view').style.display = view === 'map' ? 'block' : 'none';
-        
-        document.getElementById('view-portal-btn').classList.toggle('bg-white', view === 'portal');
-        document.getElementById('view-portal-btn').classList.toggle('opacity-50', view !== 'portal');
-        document.getElementById('view-map-btn').classList.toggle('bg-white', view === 'map');
-        document.getElementById('view-map-btn').classList.toggle('opacity-50', view !== 'map');
-
-        if (view === 'map') setTimeout(() => map.invalidateSize(), 200);
+    function switchView(v) {
+        document.getElementById('portal-view').style.display = v === 'portal' ? 'block' : 'none';
+        document.getElementById('map-view').style.display = v === 'map' ? 'block' : 'none';
+        document.getElementById('view-title').innerText = v === 'portal' ? 'Portal' : 'World Map';
+        document.getElementById('btn-portal').classList.toggle('opacity-50', v !== 'portal');
+        document.getElementById('btn-map').classList.toggle('opacity-50', v !== 'map');
+        if(v === 'map') setTimeout(() => map.invalidateSize(), 200);
     }
 
-    /* --- PORTAL RENDER (New) --- */
+    /* --- PORTAL LOGIC --- */
     function renderPortal() {
-        const grid = document.getElementById('album-grid');
+        const grid = document.getElementById('portal-grid');
         grid.innerHTML = '';
-        const seenAlbums = new Set();
-
         const filtered = photoMarkers.filter(p => activeYear === 'All' || p.year.toString() === activeYear);
-
+        
         filtered.forEach((p, idx) => {
-            if (!seenAlbums.has(p.album)) {
-                seenAlbums.add(p.album);
-                const activityIcon = ICONS_MAP[p.activity?.toLowerCase().trim()] || '❓';
-                const imgUrl = (p.img && p.img.length > 4) ? `${ASSET_BASE}/${p.year}/img/${p.img}` : '';
-
-                grid.innerHTML += `
-                    <article class="trip-card">
-                        <img src="${imgUrl}" loading="lazy" onerror="this.src='https://via.placeholder.com/400x225?text=Kein+Bild'">
-                        <div class="p-5">
-                            <div class="flex justify-between items-start mb-2">
-                                <h3 class="font-bold text-gray-900 leading-tight">${p.title}</h3>
-                                <span class="text-xl">${activityIcon}</span>
-                            </div>
-                            <p class="text-[10px] text-gray-400 font-bold uppercase mb-4">${p.date} • ${p.tags || ''}</p>
-                            <div class="flex gap-2">
-                                <a href="${p.album}" target="_blank" class="flex-1 bg-indigo-50 text-indigo-700 text-center py-2 rounded-lg font-bold text-xs">📸 Album</a>
-                                <button onclick="jumpToMap(${photoMarkers.indexOf(p)})" class="flex-1 bg-gray-900 text-white py-2 rounded-lg font-bold text-xs">🌍 Karte</button>
-                            </div>
+            const img = (p.img && p.img.length > 4) ? `${ASSET_BASE}/${p.year}/img/${p.img}` : '';
+            grid.innerHTML += `
+                <div class="trip-card">
+                    <img src="${img}" loading="lazy" class="w-full aspect-video object-cover" onerror="this.src='https://via.placeholder.com/400x225?text=No+Preview'">
+                    <div class="p-4">
+                        <div class="flex justify-between items-start mb-1">
+                            <h3 class="font-bold text-sm h-10 overflow-hidden">${p.title}</h3>
+                            <span>${ICONS_MAP[p.activity?.toLowerCase().trim()] || '❓'}</span>
                         </div>
-                    </article>
-                `;
-            }
+                        <div class="text-[10px] text-gray-400 font-bold mb-4 uppercase">${p.date}</div>
+                        <div class="flex gap-2">
+                            <a href="${p.album}" target="_blank" class="flex-1 bg-indigo-50 text-indigo-700 text-center py-2 rounded-lg text-xs font-bold">ALBUM</a>
+                            <button onclick="jumpToMarker(${photoMarkers.indexOf(p)})" class="flex-1 bg-gray-900 text-white py-2 rounded-lg text-xs font-bold">MAP</button>
+                        </div>
+                    </div>
+                </div>`;
         });
     }
 
-    function jumpToMap(idx) {
+    function jumpToMarker(idx) {
         switchView('map');
         const p = photoMarkers[idx];
-        map.flyTo([p.lat, p.lon], 14);
-        // Find marker in currentMarkers array by custom property
+        map.flyTo([p.lat, p.lon], 11);
         const m = currentMarkers.find(m => m._idx === idx);
-        if (m) setTimeout(() => m.openPopup(), 1000);
+        if(m) setTimeout(() => m.openPopup(), 1200);
     }
 
-    /* --- MAP LOGIC (Your Original Scripts Integrated) --- */
+    /* --- RESTORED MAP CORE LOGIC --- */
     function initMap() {
         map = L.map('map', { center: [48.18, 14.17], zoom: 11, zoomControl: false });
-        L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png').addTo(map);
-        
+        overviewLayer = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png').addTo(map);
+        detailLayer = L.tileLayer(`https://api.maptiler.com/maps/outdoor-v4/{z}/{x}/{y}@2x.png?key=${MAPTILER_KEY}`, { tileSize: 512, zoomOffset: -1 });
+
         map.on('zoomend', () => {
-            document.getElementById('zoom-level-display').innerText = map.getZoom();
+            const z = map.getZoom();
+            document.getElementById('zoom-level-display').innerText = z;
+            if (z >= switchThreshold) {
+                if (!map.hasLayer(detailLayer)) { detailLayer.addTo(map); map.removeLayer(overviewLayer); }
+            } else {
+                if (!map.hasLayer(overviewLayer)) { overviewLayer.addTo(map); map.removeLayer(detailLayer); }
+            }
         });
+        
+        // Threshold slider restore
+        document.getElementById('threshold-slider').oninput = (e) => { switchThreshold = e.target.value; };
     }
 
     function renderMarkers() {
-        if (!map) return;
         currentMarkers.forEach(m => map.removeLayer(m));
         currentMarkers = [];
 
         photoMarkers.forEach((p, i) => {
             const rawAct = p.activity?.toLowerCase().trim();
             const activityKey = ICONS_MAP[rawAct] ? rawAct : 'unknown';
-            const yearMatch = (activeYear === 'All' || p.year.toString() === activeYear);
-
-            if (yearMatch && p.lat && p.lon) {
+            if ((activeYear === 'All' || p.year.toString() === activeYear) && activeFilters[activityKey]) {
                 const icon = L.divIcon({
                     className: `emoji-marker-outer marker-${activityKey.replace('+', '-')}`,
                     html: `<span class="emoji-marker-inner">${ICONS_MAP[rawAct] || '❓'}</span>`,
                     iconSize: [26, 26]
                 });
 
-                const content = `<div class="text-center font-bold text-xs">${p.title}</div>`;
-                const m = L.marker([p.lat, p.lon], { icon }).bindPopup(content).addTo(map);
+                const imgHtml = (p.img) ? `<img src="${ASSET_BASE}/${p.year}/img/${p.img}" class="photo-popup-img">` : '';
+                const content = `<div class="text-center">${imgHtml}<div class="popup-title font-bold text-[10px]">${p.title}</div>
+                    <div class="flex gap-1 mt-2">
+                        <a href="${p.album}" target="_blank" class="bg-indigo-900 text-white p-1 flex-1 text-center rounded text-[9px]">ALBUM</a>
+                        <button onclick="loadGpxTrack(${i})" class="bg-emerald-700 text-white p-1 flex-1 rounded text-[9px]">TRACK</button>
+                    </div></div>`;
+
+                const m = L.marker([p.lat, p.lon], { icon }).bindPopup(content)
+                    .bindTooltip(p.title, { direction: 'top', offset: [0, -15], className: 'hover-title' }).addTo(map);
                 m._idx = i;
                 currentMarkers.push(m);
             }
         });
+    }
+
+    /* --- RESTORED GPX & TRACK CONTROL --- */
+    window.loadGpxTrack = function(idx, shouldZoom = true) {
+        const p = photoMarkers[idx];
+        if (loadedTracks[idx]) { map.removeLayer(loadedTracks[idx].group); delete loadedTracks[idx]; return; }
+
+        const trackGroup = L.featureGroup().addTo(map);
+        new L.GPX(`${ASSET_BASE}/${p.year}/gpx/${p.gpx}`, {
+            async: true,
+            marker_options: { startIconUrl: '', endIconUrl: '' },
+            polyline_options: { color: COLORS[p.activity] || '#666', weight: 5 }
+        }).on('loaded', e => {
+            if (shouldZoom) map.flyToBounds(e.target.getBounds(), { padding: [40, 40] });
+            loadedTracks[idx] = { group: trackGroup };
+            updateClearButton();
+        }).addTo(trackGroup);
+    };
+
+    window.showAllTracks = function() {
+        photoMarkers.forEach((p, i) => {
+            if ((activeYear === 'All' || p.year.toString() === activeYear) && p.gpx) loadGpxTrack(i, false);
+        });
+    };
+
+    window.clearAllTracks = function() {
+        Object.keys(loadedTracks).forEach(idx => map.removeLayer(loadedTracks[idx].group));
+        loadedTracks = {};
+        updateClearButton();
+    };
+
+    function updateClearButton() {
+        const btn = document.getElementById('clear-tracks-btn');
+        const hasTracks = Object.keys(loadedTracks).length > 0;
+        btn.classList.toggle('bg-red-600', hasTracks);
+        btn.classList.toggle('bg-gray-300', !hasTracks);
+        btn.classList.toggle('cursor-not-allowed', !hasTracks);
+    }
+
+    function toggleActivity(key, btn) {
+        activeFilters[key] = !activeFilters[key];
+        btn.classList.toggle('bg-indigo-600', activeFilters[key]);
+        btn.classList.toggle('bg-gray-400', !activeFilters[key]);
+        renderMarkers();
     }
 
     function togglePanel(id) {
@@ -287,7 +311,7 @@
         p.style.display = p.style.display === 'flex' ? 'none' : 'flex';
     }
 
-    window.onload = init;
+    init();
 </script>
 </body>
 </html>
