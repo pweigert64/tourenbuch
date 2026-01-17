@@ -191,7 +191,7 @@
     };
 
     let map, overviewLayer, detailLayer, hikingLayer, cyclingLayer;
-    let photoMarkers = [], currentMarkers = [], loadedTracks = {}; 
+    let photoMarkers = [], currentMarkers = [], allMarkers = [], loadedTracks = {}; 
     let activeFilters = { ski: true, hike: true, climb: true, bike: true, 'bike+hike': true, 'trip': true, 'unknown': true };
     let activeYear = 'All', isInitialLoad = true, switchThreshold = 16; 
     let MAPTILER_KEY, SHEETS_CSV_URL;
@@ -985,6 +985,7 @@
 					.addTo(map);
 				m._idx = idx;
 				currentMarkers.push(m);
+				allMarkers[idx] = m;
 				
 				// Re-open popup if it was open before the re-render
 				if((isInitialLoad && i === 0) || openId === idx) m.openPopup();
@@ -1022,6 +1023,7 @@
 	
 </body>
 </html>
+
 
 
 
