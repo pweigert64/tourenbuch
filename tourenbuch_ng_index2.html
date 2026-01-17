@@ -421,7 +421,7 @@
 		    // Wenn es einen Fehler gibt (onerror), verstecken wir das Bild einfach, 
 		    // damit das Emoji im Hintergrund sichtbar wird.
 		    const imageHtml = imgPath 
-		        ? `<img src="${imgPath}" onerror="this.style.display='none';">` 
+		        ? `<img src="${imgPath}" loading="lazy" onerror="this.style.display='none';">` 
 		        : '';
 		
 		    const activityEmoji = ICONS_MAP[p.activity?.toLowerCase().trim()] || '❓';
@@ -1066,6 +1066,7 @@
 	
 </body>
 </html>
+
 
 
 
