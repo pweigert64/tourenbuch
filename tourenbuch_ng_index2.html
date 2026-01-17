@@ -245,6 +245,14 @@
                 return obj;
             });
 
+			// Clean up "undefined" strings in the data immediately after loading
+			photoMarkers = photoMarkers.map(p => {
+			    for (let key in p) {
+			        if (p[key] === "undefined" || p[key] === undefined) p[key] = "";
+			    }
+			    return p;
+			});
+			
             // FIXED: Initial Year Detection
             const yearsInData = [...new Set(photoMarkers.map(p => p.year.toString()))]
                                 .filter(y => y && y.length === 4)
@@ -331,22 +339,29 @@
      * Updates the global year filter and refreshes all views
      * @param {string} yr - The selected year (e.g., '2024' or 'All')
      */
-    window.updateActiveYear = function(yr) {
-        activeYear = yr;
-        populateYearSidebar();
-        populateYearDropdown(); // Keep both in sync
-        const isMapVisible = document.getElementById('map-view').style.display === 'block';
-        if (isMapVisible) {
-            renderMarkers();
-            const label = document.getElementById('current-year-label');
-            label.innerText = (activeYear === 'All') ? `MAP: ALL` : `MAP: ${activeYear}`;
-        } else {
-            renderPortal();
-            const label = document.getElementById('current-year-label');
-            label.innerText = (activeYear === 'All') ? `PORTAL: ALL` : `YEAR: ${activeYear}`;
-        }
-    };
-
+	window.updateActiveYear = function(yr) {
+	    activeYear = yr;
+	    
+	    // 1. Sync the Sidebar (Left)
+	    populateYearSidebar(); 
+	    
+	    // 2. Sync the Map Dropdown (Bottom Right)
+	    const mapDropdown = document.getElementById('year-select');
+	    if (mapDropdown) {
+	        mapDropdown.value = yr;
+	    }
+	    
+	    // 3. Update the Top Nav Label
+	    const isMapVisible = (document.getElementById('map-view').style.display === 'block');
+	    const label = document.getElementById('current-year-label');
+	    const prefix = isMapVisible ? 'MAP' : 'PORTAL';
+	    label.innerText = (yr === 'All') ? `${prefix}: ALL` : `${prefix}: ${yr}`;
+	    
+	    // 4. Refresh Data
+	    renderPortal(); 
+	    renderMarkers();
+	};
+	
     /**
      * Populates the sidebar with years from the dataset
      */
@@ -403,31 +418,47 @@
 	}
 
 	/**
-     * Transitions to map, focuses on marker, and auto-loads track
-     * @param {number} idx - Global index in photoMarkers array
-     */
+	 * Transitions to map, ensures correct year filter, focuses on marker, and auto-loads track
+	 * @param {number} idx - Global index in photoMarkers array
+	 */
 	function jumpToMap(idx) {
-	    // 1. Switch the view
+	    const p = photoMarkers[idx];
+	    const tourYear = p.year.toString();
+	
+	    // 1. SYNC YEAR: If the map is filtered for a different year, switch it first
+	    if (activeYear !== 'All' && activeYear !== tourYear) {
+	        console.log(`Switching filter to match tour year: ${tourYear}`);
+	        window.updateActiveYear(tourYear);
+	    }
+	
+	    // 2. SWITCH VIEW: Change from Portal to Map
 	    switchView('map');
 	    
-	    const p = photoMarkers[idx];
-	    
-	    // 2. We need a slightly longer delay to let map.invalidateSize() work
+	    // 3. WAIT & FLY: Delay slightly so Leaflet can render the markers
 	    setTimeout(() => {
-	        // Center the map
-	        map.flyTo([p.lat, p.lon], 11, { duration: 1 });
+	        // Fly to location
+	        map.flyTo([p.lat, p.lon], 11, { duration: 1.2 });
 	
-	        // 3. Find the marker in the currentMarkers array by the stored index
-	        const marker = currentMarkers.find(m => m._idx === idx);
-	        
-	        if (marker) {
-	            // Open the popup after the flight ends
-	            setTimeout(() => {
-	                marker.openPopup();
-	            }, 1100); 
-	        }
+	        // 4. FIND & OPEN POPUP: Search through the markers currently on the map
+	        // We use a retry-mechanism to ensure the marker is really there
+	        let attempts = 0;
+	        const findAndOpen = () => {
+	            let found = false;
+	            map.eachLayer(layer => {
+	                if (layer instanceof L.Marker && layer._idx === idx) {
+	                    setTimeout(() => layer.openPopup(), 1000); // Open when flight ends
+	                    found = true;
+	                }
+	            });
 	
-	        // 4. Auto-load track if available
+	            if (!found && attempts < 5) {
+	                attempts++;
+	                setTimeout(findAndOpen, 200); // Try again if render was slow
+	            }
+	        };
+	        findAndOpen();
+	
+	        // 5. AUTO-LOAD TRACK
 	        if (p.gpx && p.gpx.length > 5 && !loadedTracks[idx]) {
 	            loadGpxTrack(idx, true);
 	        }
@@ -962,22 +993,32 @@
 	 * POPULATE YEAR DROP DOWN on the map
 	 * Function 
 	 --------------------------------------------------------------------------*/		
-    function populateYearDropdown() {
-        const s = document.getElementById('year-select');
-        if (!s) return;
-        const yrs = ['All', ...new Set(photoMarkers.map(p => p.year.toString()))].sort().reverse();
-        s.innerHTML = '';
-        yrs.forEach(y => s.add(new Option(y, y)));
-        s.onchange = (e) => { activeYear = e.target.value; renderMarkers(); };
-    }
-    
-    // START EVERYTHING
+	function populateYearDropdown() {
+	    const s = document.getElementById('year-select');
+	    if (!s) return;
+	    
+	    const yrs = ['All', ...new Set(photoMarkers.map(p => p.year.toString()))]
+	                .filter(y => y && y !== "undefined")
+	                .sort().reverse();
+	                
+	    s.innerHTML = '';
+	    yrs.forEach(y => s.add(new Option(y, y)));
+	    
+	    // FIXED: Set initial value to current activeYear
+	    s.value = activeYear;
+	
+	    // FIXED: Use the central sync function
+	    s.onchange = (e) => { window.updateActiveYear(e.target.value); };
+	}
+	
+    // MAIN: START EVERYTHING
     loadConfig().then(() => fetchSheetData());
 
 </script>
 	
 </body>
 </html>
+
 
 
 
