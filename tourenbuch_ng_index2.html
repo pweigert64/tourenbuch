@@ -362,28 +362,49 @@
 	/**
      * Renders the Portal Grid Cards
      */
-    function renderPortal() {
-        const grid = document.getElementById('portal-grid');
-        grid.innerHTML = '';
-        const filtered = photoMarkers.filter(p => activeYear === 'All' || p.year.toString() === activeYear);
-        
-        filtered.forEach((p) => {
-            const globalIdx = photoMarkers.indexOf(p);
-            const imgPath = (p.img) ? `${ASSET_BASE}/${p.year}/img/${p.img}` : '';
-            grid.innerHTML += `
-                <div class="bg-white rounded-xl shadow-sm overflow-hidden border border-gray-100 flex flex-col">
-                    <img src="${imgPath}" class="w-full aspect-video object-cover" onerror="this.src='https://via.placeholder.com/400x225?text=No+Preview'">
-                    <div class="p-4 flex-grow">
-                        <div class="flex justify-between items-start mb-2">
-                            <h3 class="font-bold text-sm text-gray-800 leading-tight">${p.title}</h3>
-                            <span class="text-lg">${ICONS_MAP[p.activity?.toLowerCase().trim()] || '❓'}</span>
-                        </div>
-                        <div class="text-[10px] text-gray-400 font-bold uppercase mb-4">${p.date}</div>
-                        <button onclick="jumpToMap(${globalIdx})" class="w-full bg-gray-900 text-white py-2 rounded-lg text-xs font-bold hover:bg-indigo-600">SHOW ON MAP</button>
-                    </div>
-                </div>`;
-        });
-    }
+	function renderPortal() {
+	    const grid = document.getElementById('portal-grid');
+	    grid.innerHTML = '';
+	    
+	    // Filter data based on sidebar selection
+	    const filtered = photoMarkers.filter(p => activeYear === 'All' || p.year.toString() === activeYear);
+	    
+	    filtered.forEach((p) => {
+	        const globalIdx = photoMarkers.indexOf(p);
+	        const imgPath = (p.img) ? `${ASSET_BASE}/${p.year}/img/${p.img}` : '';
+	        
+	        // --- ALBUM LOGIC (Genauso wie in renderMarkers) ---
+	        const hasAlbum = (p.album && p.album.startsWith('http'));
+	        const albumHtml = hasAlbum 
+	            ? `<a href="${p.album}" target="_blank" class="flex-1 bg-indigo-100 text-indigo-700 py-2 rounded-lg text-[10px] font-bold hover:bg-indigo-200 transition-colors text-center uppercase">📸 Album</a>`
+	            : `<span class="flex-1 bg-gray-50 text-gray-400 py-2 rounded-lg text-[10px] font-bold text-center uppercase cursor-not-allowed">No Album</span>`;
+	
+	        grid.innerHTML += `
+	            <div class="bg-white rounded-xl shadow-sm overflow-hidden border border-gray-100 flex flex-col hover:shadow-md transition-shadow">
+	                <div class="relative">
+	                    <img src="${imgPath}" class="w-full aspect-video object-cover" 
+	                         onerror="this.src='https://via.placeholder.com/400x225?text=No+Preview'">
+	                    <div class="absolute top-2 right-2 bg-white/90 backdrop-blur-sm px-2 py-1 rounded-md shadow-sm text-sm">
+	                        ${ICONS_MAP[p.activity?.toLowerCase().trim()] || '❓'}
+	                    </div>
+	                </div>
+	                <div class="p-4 flex-grow flex flex-col">
+	                    <div class="mb-3">
+	                        <h3 class="font-bold text-sm text-gray-800 leading-tight mb-1">${p.title}</h3>
+	                        <div class="text-[10px] text-gray-400 font-bold uppercase">${p.date}</div>
+	                    </div>
+	                    
+	                    <div class="mt-auto flex gap-2">
+	                        ${albumHtml}
+	                        <button onclick="jumpToMap(${globalIdx})" 
+	                                class="flex-1 bg-gray-900 text-white py-2 rounded-lg text-[10px] font-bold hover:bg-indigo-600 transition-colors uppercase">
+	                            🌍 Map
+	                        </button>
+	                    </div>
+	                </div>
+	            </div>`;
+	    });
+	}
 
 	/**
      * Transitions to map, focuses on marker, and auto-loads track
@@ -945,6 +966,7 @@
 	
 </body>
 </html>
+
 
 
 
