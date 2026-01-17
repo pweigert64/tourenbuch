@@ -62,10 +62,38 @@
         .marker-unknown { background: #6b7280; }
         .emoji-marker-inner { font-size: 11pt; background: white; border-radius: 50%; width: 18px; height: 18px; display: flex; align-items: center; justify-content: center; }
         .photo-popup-img { width: 100%; border-radius: 0.4rem; object-fit: cover; height: 120px; margin-bottom: 5px; }
-        .popup-title { font-size: 10px; line-height: 1.3; margin: 5px 0; font-weight: bold; text-align: center; }
-        .hover-title { background: rgba(0, 0, 0, 0.8) !important; color: white !important; border: none !important; border-radius: 4px; padding: 4px 8px; font-size: 13px; }
         .filter-button { padding: 8px; font-size: 0.75rem; font-weight: 700; border-radius: 8px; cursor: pointer; border: 1px solid #d1d5db; text-align: center; width: 100%; }
         .filter-button-active { background: #4f46e5 !important; color: white !important; }
+		/* Activities Popup & Title Styling */
+		.leaflet-popup-content { width: 200px !important; margin: 10px; }
+		.popup-title { 
+			font-size: 10px; line-height: 1.3; margin: 5px 0; font-weight: bold;
+			display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+			overflow: hidden; text-overflow: ellipsis; text-align: center;
+		}
+		.photo-popup-img { width: 100%; border-radius: 0.4rem; object-fit: cover; height: 120px; margin-bottom: 5px; }
+		
+		.track-label { 
+			background: rgba(255, 255, 255, 0.9); border: 1px solid #999; padding: 1px 5px; 
+			font-weight: bold; border-radius: 4px; font-size: 10px; color: #333; 
+			box-shadow: 2px 2px 5px rgba(0,0,0,0.1); white-space: nowrap;
+		}
+		
+		/* Styling for the Hover Tooltip */
+		.hover-title {
+			background: rgba(0, 0, 0, 0.8) !important;
+			color: white !important;
+			border: none !important;
+			border-radius: 4px;
+			padding: 4px 8px;
+			font-size: 13px;
+		}
+
+		/* This styles the arrow to match the black background */
+		.leaflet-tooltip-top.hover-title:before {
+			border-top-color: rgba(0, 0, 0, 0.8);
+		}
+		.leaflet-tooltip-right:before, .leaflet-tooltip-left:before { display: none; }
     </style>
 </head>
 <body>
@@ -875,6 +903,10 @@
 
 				// 7. Add to Map
 				const m = L.marker([p.lat, p.lon], { icon, zIndexOffset: 1000 })
+				    .bindPopup(content, {
+				        minWidth: 200,
+				        maxWidth: 200,
+				        className: 'custom-tour-popup'}) // Optional: for even more CSS control
 					.bindPopup(content)
 					.bindTooltip(p.title, { 
 						direction: 'top', 
@@ -913,5 +945,6 @@
 	
 </body>
 </html>
+
 
 
