@@ -12,153 +12,72 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;800&family=Noto+Color+Emoji&display=swap" rel="stylesheet">
 
     <style>
-        /* --- WRAPPER STYLES (Das neue Gerüst) --- */
+        /* --- CORE LAYOUT --- */
+        html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; font-family: 'Inter', sans-serif; }
         #main-layout { display: flex; height: 100vh; width: 100vw; overflow: hidden; }
-        #sidebar { width: 240px; background: white; border-right: 1px solid #e5e7eb; display: flex; flex-direction: column; z-index: 11000; }
-        #content-area { flex-grow: 1; position: relative; display: flex; flex-direction: column; }
-        #top-nav { height: 60px; border-bottom: 1px solid #e5e7eb; display: flex; align-items: center; justify-content: space-between; padding: 0 20px; background: white; z-index: 10000; }
-        #portal-view { position: absolute; inset: 60px 0 0 0; overflow-y: auto; background: #f9fafb; padding: 20px; z-index: 5; }
-        #map-view { position: absolute; inset: 60px 0 0 0; z-index: 1; }
-        #map { width: 100%; height: 100%; }
-        .year-btn { padding: 12px 20px; cursor: pointer; font-weight: 700; color: #64748b; border-left: 4px solid transparent; }
+        
+        /* Sidebar */
+        #sidebar { width: 240px; background: white; border-right: 1px solid #e5e7eb; display: flex; flex-direction: column; z-index: 11000; flex-shrink: 0; }
+        #sidebar-years { flex-grow: 1; overflow-y: auto; }
+        
+        /* Content Area */
+        #content-area { flex-grow: 1; position: relative; display: flex; flex-direction: column; min-width: 0; }
+        #top-nav { height: 60px; border-bottom: 1px solid #e5e7eb; display: flex; align-items: center; justify-content: space-between; padding: 0 20px; background: white; z-index: 10001; flex-shrink: 0; }
+        
+        /* View Containers: Absolute positioning relative to #content-area */
+        #portal-view, #map-view { 
+            position: absolute; 
+            top: 60px; /* Exact height of top-nav */
+            left: 0; right: 0; bottom: 0; 
+            overflow: hidden; 
+        }
+
+        #portal-view { background: #f9fafb; padding: 20px; overflow-y: auto; z-index: 10; }
+        #map-view { z-index: 5; display: none; } /* Hidden by default, switchView handles this */
+
+        /* Map styling to fill the entire section */
+        #map-container, #map { width: 100%; height: 100%; position: relative; }
+
+        /* --- UI ELEMENTS --- */
+        .year-btn { padding: 12px 20px; cursor: pointer; font-weight: 700; color: #64748b; border-left: 4px solid transparent; transition: 0.2s; }
+        .year-btn:hover { background: #f8fafc; color: #4f46e5; }
         .year-btn.active { background: #eef2ff; color: #4f46e5; border-left-color: #4f46e5; }
 
-        /* RESET & LAYOUT: Stellt sicher, dass das Portal und die Karte den Platz voll ausnutzen */
-        html, body { 
-            margin: 0; 
-            padding: 0; 
-            width: 100%; 
-            height: 100%; 
-            overflow: hidden; /* Verhindert doppeltes Scrollen am Rand */
+        .floating-container { position: absolute; z-index: 9999; display: flex; flex-direction: column; align-items: flex-end; gap: 10px; }
+        .pop-out-panel { 
+            background: white; padding: 15px; border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.2); 
+            min-width: 240px; display: none; flex-direction: column; gap: 10px; border: 1px solid #e5e7eb; 
+            max-height: 45vh; overflow-y: auto; 
         }
-        
-        /* Die Karte muss 100% des Containers (#map-view) füllen */
-        #map { 
-            width: 100%; 
-            height: 100%; /* Hier reicht 100%, da der Container #map-view schon die richtige Größe hat */
-            background: #f3f4f6; 
+        .circle-toggle { 
+            background: #4f46e5; color: white; width: 50px; height: 50px; border-radius: 50%; 
+            cursor: pointer; border: 3px solid white; font-size: 1.5rem; display: flex; 
+            align-items: center; justify-content: center; box-shadow: 0 4px 10px rgba(0,0,0,0.2); 
         }
 
-		/* SHARED FLOATING LAYOUT: Used for both Top and Bottom groups */
-		.floating-container { 
-			position: absolute; 
-			z-index: 9999; 
-			display: flex; 
-			flex-direction: column; 
-			align-items: flex-end; 
-			gap: 10px; 
-		}
-
-		/* THE POP-OUT PANELS: Unified style for both Map and Activity menus */
-		.pop-out-panel { 
-			background: white; 
-			padding: 15px; 
-			border-radius: 12px; 
-			box-shadow: 0 10px 25px rgba(0,0,0,0.2); 
-			min-width: 240px; 
-			display: none; /* Toggled via JS to 'flex' */
-			flex-direction: column; 
-			gap: 10px; 
-			border: 1px solid #e5e7eb; 
-			
-			/* LANDSCAPE OPTIMIZATION */
-			max-height: 42dvh;    /* Prevents the panel from ever being taller than half the screen */
-			overflow-y: auto;     /* Adds a scrollbar if the menu is too tall */
-			-webkit-overflow-scrolling: touch; 
-		}
-
-		/* THE CIRCLE BUTTONS (Map Icon and Gear Icon) */
-		.circle-toggle { 
-			background: #4f46e5; 
-			color: white; 
-			width: 50px; 
-			height: 50px; 
-			border-radius: 50%; 
-			cursor: pointer; 
-			border: 3px solid white; 
-			font-size: 1.5rem; 
-			display: flex; 
-			align-items: center; 
-			justify-content: center; 
-			box-shadow: 0 4px 10px rgba(0,0,0,0.2);
-		}
-
-		/* INTERNAL ELEMENTS */
-		#zoom-level-display {
-			background: #f3f4f6; color: #374151;
-			padding: 2px 6px; border-radius: 4px;
-			font-family: monospace; font-weight: bold;
-		}
-		
-		#year-select {
-			cursor: pointer;
-			border: 1px solid #d1d5db;
-			outline: none;
-		}
-		#year-select:focus {
-			border-color: #4f46e5;
-		}
-
-		.filter-button { 
-			padding: 8px; font-size: 0.75rem; font-weight: 700; border-radius: 8px;
-			cursor: pointer; border: 1px solid #d1d5db; text-align: center; width: 100%; 
-		}
-		.filter-button-active { background: #4f46e5 !important; color: white !important; }
-
-		/* Marker Styles */
-		.emoji-marker-outer { width: 26px!important; height: 26px!important; border-radius: 50%; border: 2px solid white; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 5px rgba(0,0,0,0.2); }
-		.marker-ski { background: #4f46e5; } 
-		.marker-hike { background: #b54708; } 
-		.marker-climb { background: #dc2626; } 
-		.marker-bike { background: #065f46; } 
-		.marker-bike-hike { background: #f97316; }
-		.marker-trip { background: #9333ea; } 
-		.marker-unknown { background: #6b7280; } 
-		
-		.emoji-marker-inner { font-size: 11pt; background: white; border-radius: 50%; width: 18px; height: 18px; display: flex; align-items: center; justify-content: center; }
-		
-		/* Activities Popup & Title Styling */
-		.leaflet-popup-content { width: 200px !important; margin: 10px; }
-		.popup-title { 
-			font-size: 10px; line-height: 1.3; margin: 5px 0; font-weight: bold;
-			display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
-			overflow: hidden; text-overflow: ellipsis; text-align: center;
-		}
-		.photo-popup-img { width: 100%; border-radius: 0.4rem; object-fit: cover; height: 120px; margin-bottom: 5px; }
-		
-		.track-label { 
-			background: rgba(255, 255, 255, 0.9); border: 1px solid #999; padding: 1px 5px; 
-			font-weight: bold; border-radius: 4px; font-size: 10px; color: #333; 
-			box-shadow: 2px 2px 5px rgba(0,0,0,0.1); white-space: nowrap;
-		}
-		
-		/* Styling for the Hover Tooltip */
-		.hover-title {
-			background: rgba(0, 0, 0, 0.8) !important;
-			color: white !important;
-			border: none !important;
-			border-radius: 4px;
-			padding: 4px 8px;
-			font-size: 13px;
-		}
-
-		/* This styles the arrow to match the black background */
-		.leaflet-tooltip-top.hover-title:before {
-			border-top-color: rgba(0, 0, 0, 0.8);
-		}
-		.leaflet-tooltip-right:before, .leaflet-tooltip-left:before { display: none; }
+        /* Marker & Popup Styles (Strictly preserved) */
+        .emoji-marker-outer { width: 26px!important; height: 26px!important; border-radius: 50%; border: 2px solid white; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 5px rgba(0,0,0,0.2); }
+        .marker-ski { background: #4f46e5; } .marker-hike { background: #b54708; } .marker-climb { background: #dc2626; } 
+        .marker-bike { background: #065f46; } .marker-bike-hike { background: #f97316; } .marker-trip { background: #9333ea; } 
+        .marker-unknown { background: #6b7280; }
+        .emoji-marker-inner { font-size: 11pt; background: white; border-radius: 50%; width: 18px; height: 18px; display: flex; align-items: center; justify-content: center; }
+        .photo-popup-img { width: 100%; border-radius: 0.4rem; object-fit: cover; height: 120px; margin-bottom: 5px; }
+        .popup-title { font-size: 10px; line-height: 1.3; margin: 5px 0; font-weight: bold; text-align: center; }
+        .hover-title { background: rgba(0, 0, 0, 0.8) !important; color: white !important; border: none !important; border-radius: 4px; padding: 4px 8px; font-size: 13px; }
+        .filter-button { padding: 8px; font-size: 0.75rem; font-weight: 700; border-radius: 8px; cursor: pointer; border: 1px solid #d1d5db; text-align: center; width: 100%; }
+        .filter-button-active { background: #4f46e5 !important; color: white !important; }
     </style>
 </head>
 <body>
 <div id="main-layout">
     <aside id="sidebar">
         <div class="p-5 font-black text-xl border-b tracking-tighter">🏔️ TOUREN</div>
-        <div id="sidebar-years" class="flex-grow overflow-y-auto pt-2"></div>
+        <div id="sidebar-years"></div>
     </aside>
 
     <div id="content-area">
         <header id="top-nav">
-             <div id="current-year-label" class="font-black text-indigo-600 tracking-widest uppercase">PORTAL</div>
+             <div id="current-year-label" class="font-black text-indigo-600 tracking-widest uppercase italic">PORTAL</div>
              <div class="flex gap-2 bg-gray-100 p-1 rounded-xl">
                 <button onclick="switchView('portal')" id="nav-portal" class="px-4 py-2 rounded-lg bg-white shadow-sm">🗓️</button>
                 <button onclick="switchView('map')" id="nav-map" class="px-4 py-2 rounded-lg opacity-50">🌍</button>
@@ -169,223 +88,292 @@
             <div id="portal-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-7xl mx-auto"></div>
         </section>
 
-        <section id="map-view" style="display:none;">
+        <section id="map-view">
             <div id="map-container">
-            	<div id="map-settings-group" class="floating-container" style="top: 65px; right: 15px;">
-            		<button class="circle-toggle" onclick="togglePanel('map-panel')">🗺️</button>
-            		<div id="map-panel" class="pop-out-panel">
-            			<div class="bg-indigo-50 p-3 rounded-lg flex flex-col gap-2 text-[10px] font-bold">
-            				<div class="flex justify-between border-b border-indigo-200 pb-1">
-            					<span class="text-indigo-600 uppercase">Zoom</span>
-            					<span id="zoom-level-display">11</span>
-            				</div>
-            				<div class="flex justify-between">
-            					<span>SWITCH AT:</span>
-            					<span id="threshold-display">16</span>
-            				</div>
-            				<input type="range" id="threshold-slider" min="1" max="17" value="16" step="1" class="w-full cursor-pointer">
-            			</div>
-            			<div class="grid grid-cols-2 gap-2 mt-1">
-            				<button id="hike-layer-btn" class="filter-button border text-[9px] py-2 bg-white">🏔️ HIKE</button>
-            				<button id="bike-layer-btn" class="filter-button border text-[9px] py-2 bg-white">🚲 MTB</button>
-            			</div>
-            		</div>
-            	</div>
-            
-            	<div id="activity-settings-group" class="floating-container" style="bottom: 40px; right: 15px;">
-            		<div id="activity-panel" class="pop-out-panel" style="margin-bottom: 8px; gap: 4px;">
-            			
-            			<div class="text-[10px] font-bold text-gray-400 uppercase mb-0.5">Activity Filter:</div>
-            
-            			<div class="flex items-center justify-between gap-2 mb-1 bg-gray-50 p-1 rounded-md">
-            				<span class="text-[10px] font-bold text-gray-400 uppercase">Year:</span>
-            				<select id="year-select" class="w-24 text-sm p-0.5 border rounded font-bold bg-white"></select>
-            			</div>
-            
-            			<div class="grid grid-cols-6 gap-0.5 mb-1">
-            				<button class="filter-button filter-button-active p-1 text-base" data-activity="ski">❄️</button>
-            				<button class="filter-button filter-button-active p-1 text-base" data-activity="hike">🥾</button>
-            				<button class="filter-button filter-button-active p-1 text-base" data-activity="climb">⛰️</button>
-            				<button class="filter-button filter-button-active p-1 text-base" data-activity="bike">🚴</button>
-            				<button class="filter-button filter-button-active p-1 text-base" data-activity="bike+hike">🚵</button>
-            				<button class="filter-button filter-button-active p-1 text-base" data-activity="trip">🏛️</button>
-            			</div>
-            			
-            			<div class="pt-1 border-t border-gray-100">
-            				<div class="text-[10px] font-bold text-gray-400 uppercase mb-1">Track Control:</div>
-            				<div class="search-group" style="display: flex; gap: 4px; margin-bottom: 8px; align-items: center;">
-            					<input type="text" id="power-search" 
-            						   placeholder="e.g: title:<>,year:<>,activity:..." 
-            						   onkeydown="if(event.key === 'Enter') handleDeepLink()"
-            						   style="flex-grow: 1; background: #1f2937; color: white; border: 1px solid #374151; padding: 4px 8px; border-radius: 4px; font-size: 11px; height: 24px;">
-            					
-            					<button onclick="clearPowerSearch()" 
-            							title="Clr Tracks & Search"
-            							style="background: none; border: none; cursor: pointer; font-size: 11px; padding: 0 5px; line-height: 24px;">
-            							❌
-            					</button>
-            				</div>
-            				<div class="grid grid-cols-2 gap-1.5">
-            					<button id="show-all-tracks-btn" class="filter-button bg-emerald-600 text-white border-none" onclick="showAllTracks()">🗺️ ALL</button>
-            					<button id="clear-tracks-btn" class="filter-button bg-gray-300 text-white border-none cursor-not-allowed" onclick="clearAllTracks()">🗑️ CLR</button>
-            				</div>
-            			</div>
-            
-            			<div class="mt-2 text-[9px] font-bold text-gray-300 border-t pt-2">
-            				<button onclick="reloadData()" class="hover:text-amber-500 transition-colors uppercase flex justify-between w-full">
-            					<span>🔄 Refresh Sheet Data</span>
-            					<span id="reload-status">IDLE</span>
-            				</button>
-            			</div>
-            		</div>
-            		<button class="circle-toggle" onclick="togglePanel('activity-panel')">⚙️</button>
-            	</div>
-            	
-                <div id="map"></div>
-            </div>  
+                <div id="map"></div> <div id="map-settings-group" class="floating-container" style="top: 15px; right: 15px;">
+                    <button class="circle-toggle" onclick="togglePanel('map-panel')">🗺️</button>
+                    <div id="map-panel" class="pop-out-panel">
+                        <div class="bg-indigo-50 p-3 rounded-lg flex flex-col gap-2 text-[10px] font-bold">
+                            <div class="flex justify-between border-b border-indigo-200 pb-1 text-indigo-600">
+                                <span class="uppercase">Zoom</span>
+                                <span id="zoom-level-display">11</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span>SWITCH AT:</span>
+                                <span id="threshold-display">16</span>
+                            </div>
+                            <input type="range" id="threshold-slider" min="1" max="17" value="16" step="1" class="w-full">
+                        </div>
+                        <div class="grid grid-cols-2 gap-2 mt-1">
+                            <button id="hike-layer-btn" class="filter-button bg-white text-[9px] py-2">🏔️ HIKE</button>
+                            <button id="bike-layer-btn" class="filter-button bg-white text-[9px] py-2">🚲 MTB</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="activity-settings-group" class="floating-container" style="bottom: 20px; right: 15px;">
+                    <div id="activity-panel" class="pop-out-panel">
+                        <div class="text-[10px] font-bold text-gray-400 uppercase">Activity Filter:</div>
+                        <div class="flex items-center justify-between gap-2 mb-1 bg-gray-50 p-1 rounded-md">
+                            <span class="text-[10px] font-bold text-gray-400 uppercase">Year:</span>
+                            <select id="year-select" class="w-24 text-sm p-0.5 border rounded font-bold bg-white"></select>
+                        </div>
+                        <div class="grid grid-cols-6 gap-0.5">
+                            <button class="filter-button filter-button-active p-1 text-base" data-activity="ski">❄️</button>
+                            <button class="filter-button filter-button-active p-1 text-base" data-activity="hike">🥾</button>
+                            <button class="filter-button filter-button-active p-1 text-base" data-activity="climb">⛰️</button>
+                            <button class="filter-button filter-button-active p-1 text-base" data-activity="bike">🚴</button>
+                            <button class="filter-button filter-button-active p-1 text-base" data-activity="bike+hike">🚵</button>
+                            <button class="filter-button filter-button-active p-1 text-base" data-activity="trip">🏛️</button>
+                        </div>
+                        <div class="pt-1 border-t">
+                            <div class="text-[10px] font-bold text-gray-400 uppercase mb-1">Track Control:</div>
+                            <div class="flex gap-1 mb-2">
+                                <input type="text" id="power-search" placeholder="Search..." onkeydown="if(event.key==='Enter')handleDeepLink()" class="flex-grow bg-gray-800 text-white p-1 rounded text-[11px]">
+                                <button onclick="clearPowerSearch()" class="text-xs">❌</button>
+                            </div>
+                            <div class="grid grid-cols-2 gap-1.5">
+                                <button class="filter-button bg-emerald-600 text-white border-none" onclick="showAllTracks()">🗺️ ALL</button>
+                                <button id="clear-tracks-btn" class="filter-button bg-gray-300 text-white border-none" onclick="clearAllTracks()">🗑️ CLR</button>
+                            </div>
+                        </div>
+                        <div class="mt-2 text-[9px] border-t pt-2">
+                            <button onclick="reloadData()" class="flex justify-between w-full uppercase">
+                                <span>🔄 Refresh Data</span>
+                                <span id="reload-status">IDLE</span>
+                            </button>
+                        </div>
+                    </div>
+                    <button class="circle-toggle" onclick="togglePanel('activity-panel')">⚙️</button>
+                </div>
+            </div>
         </section>
     </div>
 </div>
 
 <script>
-    //const ASSET_BASE = 'https://raw.githubusercontent.com/pweigert64/tourenbuch/main';
-	const ASSET_BASE = '.';
+	//const ASSET_BASE = 'https://raw.githubusercontent.com/pweigert64/tourenbuch/main';
+    const ASSET_BASE = '.';
     const COLORS = { 
-        'ski': '#4f46e5', 
-        'hike': '#b54708', 
-        'climb': '#dc2626', 
-        'bike': '#065f46', 
-        'bike+hike': '#f97316',
-		'trip': '#9333ea',   // Purple
-        'unknown': '#6b7280' 
+        'ski': '#4f46e5', 'hike': '#b54708', 'climb': '#dc2626', 
+        'bike': '#065f46', 'bike+hike': '#f97316', 'trip': '#9333ea', 'unknown': '#6b7280' 
     };
-	// GLOBAL ICON MAP - The single source of truth
-	const ICONS_MAP = { 
-		'ski': '❄️', 'hike': '🥾', 'climb': '⛰️', 
-		'bike': '🚴', 'bike+hike': '🚵', 'trip': '🏛️' 
-	};
+    const ICONS_MAP = { 
+        'ski': '❄️', 'hike': '🥾', 'climb': '⛰️', 'bike': '🚴', 'bike+hike': '🚵', 'trip': '🏛️' 
+    };
 
     let map, overviewLayer, detailLayer, hikingLayer, cyclingLayer;
-    let photoMarkers = [], currentMarkers = [], loadedTracks = {}, activeLines = {}; 
+    let photoMarkers = [], currentMarkers = [], loadedTracks = {}; 
     let activeFilters = { ski: true, hike: true, climb: true, bike: true, 'bike+hike': true, 'trip': true, 'unknown': true };
     let activeYear = 'All', isInitialLoad = true, switchThreshold = 16; 
     let MAPTILER_KEY, SHEETS_CSV_URL;
 
-	/* -------------------------------------------------------------------------
+    /* -------------------------------------------------------------------------
 	 * TOGGLE PANEL opens gear/map button.
-	 --------------------------------------------------------------------------*/
+	 * -----------------------------------------------------------------------*/
 	function togglePanel(panelId) {
-		const target = document.getElementById(panelId);
-		
-		// Check current state
-		const isCurrentlyVisible = target.style.display === 'flex';
-		
-		// 1. Hide ALL panels first so they don't overlap
-		document.querySelectorAll('.pop-out-panel').forEach(p => {
-			p.style.display = 'none';
-		});
-		
-		// 2. If it was hidden, show it now
-		if (!isCurrentlyVisible) {
-			target.style.display = 'flex';
-		}
-	}
+        const target = document.getElementById(panelId);
+        const isCurrentlyVisible = target.style.display === 'flex';
+        document.querySelectorAll('.pop-out-panel').forEach(p => p.style.display = 'none');
+        if (!isCurrentlyVisible) target.style.display = 'flex';
+    }
 
 	/* -------------------------------------------------------------------------
 	 * LOAD CONFIG load config.ts parameters:
 	 *   - MAPTILER_KEY
 	 *   - GOOGLE_SHEETS_URL holding the activities basic data
-	 --------------------------------------------------------------------------*/
-	async function loadConfig() {
-		const response = await fetch(`${ASSET_BASE}/config.js?t=${new Date().getTime()}`);
-		if (!response.ok) throw new Error("Could not find config.js on GitHub.");
-		const text = await response.text();
-		
-		const keyMatch = text.match(/MAPTILER_KEY\s*=\s*['"]([^'"]+)['"]/);
-		const urlMatch = text.match(/SHEETS_CSV_URL\s*=\s*['"]([^'"]+)['"]/);
-		
-		if (keyMatch && urlMatch) {
-			MAPTILER_KEY = keyMatch[1];
-			SHEETS_CSV_URL = urlMatch[1];
-		} else {
-			throw new Error("config.js exists but variables are unreadable.");
-		}
-	}
+	 * ------------------------------------------------------------------------*/
+    async function loadConfig() {
+        const response = await fetch(`${ASSET_BASE}/config.js?t=${new Date().getTime()}`);
+        if (!response.ok) throw new Error("Could not find config.js");
+        const text = await response.text();
+        const keyMatch = text.match(/MAPTILER_KEY\s*=\s*['"]([^'"]+)['"]/);
+        const urlMatch = text.match(/SHEETS_CSV_URL\s*=\s*['"]([^'"]+)['"]/);
+        if (keyMatch && urlMatch) {
+            MAPTILER_KEY = keyMatch[1];
+            SHEETS_CSV_URL = urlMatch[1];
+        }
+    }
 
-    /* -------------------------------------------------------------------------
+	/* -------------------------------------------------------------------------
      * FETCH SHEET DATA: The core logic to get data from Google-Sheets
-     --------------------------------------------------------------------------*/
+     * ------------------------------------------------------------------------*/
     async function fetchSheetData() {
-    	try {
-    		if (!SHEETS_CSV_URL) await loadConfig(); 
-    		
-    		const response = await fetch(`${SHEETS_CSV_URL}&t=${new Date().getTime()}`);
-    		const csvText = await response.text();
-    		const lines = csvText.split(/\r?\n/);
-    		const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
-    
-    		photoMarkers = lines.slice(1).filter(l => l.trim() !== "").map(line => {
-    			const values = line.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/);
-    			const obj = {};
-    			headers.forEach((h, i) => {
-    				let val = values[i] ? values[i].replace(/^"|"$/g, '').trim() : "";
-    				if (h === 'lat' || h === 'lon') val = parseFloat(val);
-    				obj[h] = val;
-    			});
-    			return obj;
-    		});
-    
-    		if (!map) {
-                // 1. DYNAMIC YEAR CALCULATION
-                // Extract unique years, remove invalid data, sort descending
-                const yearsInData = [...new Set(photoMarkers.map(p => p.year.toString()))]
-                                    .filter(y => y && y !== "undefined" && y.length === 4)
-                                    .sort((a, b) => b - a);
-                
-                // Set global activeYear to the newest entry found in your Sheet
-                activeYear = yearsInData.length > 0 ? yearsInData[0] : 'All';
-                console.log("Initial Active Year detected:", activeYear);
+        try {
+            if (!SHEETS_CSV_URL) await loadConfig(); 
+            const response = await fetch(`${SHEETS_CSV_URL}&t=${new Date().getTime()}`);
+            const csvText = await response.text();
+            const lines = csvText.split(/\r?\n/);
+            const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
+
+            photoMarkers = lines.slice(1).filter(l => l.trim() !== "").map(line => {
+                const values = line.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/);
+                const obj = {};
+                headers.forEach((h, i) => {
+                    let val = values[i] ? values[i].replace(/^"|"$/g, '').trim() : "";
+                    if (h === 'lat' || h === 'lon') val = parseFloat(val);
+                    obj[h] = val;
+                });
+                return obj;
+            });
+
+            // FIXED: Initial Year Detection
+            const yearsInData = [...new Set(photoMarkers.map(p => p.year.toString()))]
+                                .filter(y => y && y.length === 4)
+                                .sort((a, b) => b - a);
             
-                // 2. INITIALIZE COMPONENTS
-                initMap();             // Setup Leaflet
-                populateYearSidebar(); // Build the Sidebar buttons
-                
-                // 3. SET INITIAL VIEW
-                // Start with the Portal view
-                switchView('portal'); 
-                
+            if (isInitialLoad) {
+                activeYear = yearsInData.length > 0 ? yearsInData[0] : 'All';
+            }
+
+            if (!map) {
+                initMap();
+                populateYearSidebar();
+                switchView('portal'); // Always start in Portal
             } else {
-                // REFRESH LOGIC (for manual reloads or data updates)
                 populateYearSidebar();
                 renderPortal();
                 renderMarkers();
             }
-                		
-    		// --- THE DEEP LINK TRIGGER ---
-    		// We call it here because photoMarkers and currentMarkers are now ready!
-    		const urlParams = new URLSearchParams(window.location.search);
-    		if (urlParams.toString() !== "") {
-    			// If there is a Deep Link in the URL, re-apply it
-    			handleDeepLink();
-    		} else {
-    			// Otherwise, re-apply the current Sidebar filters (Year/Activity)
-    			applyViewFilter(null, false); // but do NOT automatically load tracks 
-    		}		
-    		return true; 
-    	} catch (e) {
-    		console.error("Fetch Error:", e);
-    		return false; 
-    	}
+            
+            return true; 
+        } catch (e) {
+            console.error("Fetch Error:", e);
+            return false; 
+        }
     }
-    
-	/* -------------------------------------------------------------------------
-	 * INITIAL DATA FETCH: Only called once on page load
-	 --------------------------------------------------------------------------*/
-	async function initDataFetch() {
-		await fetchSheetData();
-	}
 
 	/* -------------------------------------------------------------------------
+	 * INIT MAP define layers, place the appropriate map (overview or detail).
+	 --------------------------------------------------------------------------*/
+    function initMap() {
+        // Start at a generic point 
+		// because we will immediately 'fly' to the right spot in the next step.
+		const startPos = [48.18, 14.17]; // Linz/Donau
+        map = L.map('map', { center: startPos, zoom: 11, zoomControl: false });
+        
+        overviewLayer = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', { maxZoom: 17 }).addTo(map);
+        detailLayer = L.tileLayer(`https://api.maptiler.com/maps/outdoor-v4/{z}/{x}/{y}@2x.png?key=${MAPTILER_KEY}`, { tileSize: 512, zoomOffset: -1, maxZoom: 19 });
+        
+        hikingLayer = L.tileLayer('https://tile.waymarkedtrails.org/hiking/{z}/{x}/{y}.png');
+        cyclingLayer = L.tileLayer('https://tile.waymarkedtrails.org/mtb/{z}/{x}/{y}.png');
+
+        map.on('zoomend', () => {
+            const currentZoom = map.getZoom();
+            document.getElementById('zoom-level-display').innerText = currentZoom;
+            if (currentZoom >= switchThreshold) {
+                if (!map.hasLayer(detailLayer)) { detailLayer.addTo(map); map.removeLayer(overviewLayer); }
+            } else {
+                if (!map.hasLayer(overviewLayer)) { overviewLayer.addTo(map); map.removeLayer(detailLayer); }
+            }
+        });
+
+        setupEvents();
+        populateYearDropdown();
+        renderMarkers();
+    }
+
+	/* -------------------------------------------------------------------------
+     * Switches between Portal (Grid) and Map (Leaflet)
+     * @param {string} view - 'portal' or 'map'
+	 * ------------------------------------------------------------------------*/
+    function switchView(view) {
+        const isMap = view === 'map';
+        // FIXED: Using direct style to ensure visibility
+        document.getElementById('portal-view').style.display = isMap ? 'none' : 'block';
+        document.getElementById('map-view').style.display = isMap ? 'block' : 'none';
+        
+        document.getElementById('nav-portal').classList.toggle('opacity-50', isMap);
+        document.getElementById('nav-map').classList.toggle('opacity-50', !isMap);
+        
+        const label = document.getElementById('current-year-label');
+        label.innerText = (activeYear === 'All') ? `PORTAL: ALL` : `YEAR: ${activeYear}`;
+
+        if(isMap && map) {
+            setTimeout(() => {
+                map.invalidateSize();
+                renderMarkers();
+            }, 300); // Give CSS time to render the div
+        } else {
+            renderPortal();
+        }
+    }
+
+	/**
+     * Updates the global year filter and refreshes all views
+     * @param {string} yr - The selected year (e.g., '2024' or 'All')
+     */
+    window.updateActiveYear = function(yr) {
+        activeYear = yr;
+        populateYearSidebar();
+        populateYearDropdown(); // Keep both in sync
+        const isMapVisible = document.getElementById('map-view').style.display === 'block';
+        if (isMapVisible) {
+            renderMarkers();
+            const label = document.getElementById('current-year-label');
+            label.innerText = (activeYear === 'All') ? `MAP: ALL` : `MAP: ${activeYear}`;
+        } else {
+            renderPortal();
+            const label = document.getElementById('current-year-label');
+            label.innerText = (activeYear === 'All') ? `PORTAL: ALL` : `YEAR: ${activeYear}`;
+        }
+    };
+
+    /**
+     * Populates the sidebar with years from the dataset
+     */
+    function populateYearSidebar() {
+        const yrs = ['All', ...new Set(photoMarkers.map(p => p.year.toString()))].sort().reverse();
+        const side = document.getElementById('sidebar-years');
+        side.innerHTML = yrs.map(y => `
+            <div class="year-btn ${y === activeYear ? 'active' : ''}" onclick="updateActiveYear('${y}')">
+                ${y}
+            </div>`).join('');
+    }
+
+	/**
+     * Renders the Portal Grid Cards
+     */
+    function renderPortal() {
+        const grid = document.getElementById('portal-grid');
+        grid.innerHTML = '';
+        const filtered = photoMarkers.filter(p => activeYear === 'All' || p.year.toString() === activeYear);
+        
+        filtered.forEach((p) => {
+            const globalIdx = photoMarkers.indexOf(p);
+            const imgPath = (p.img) ? `${ASSET_BASE}/${p.year}/img/${p.img}` : '';
+            grid.innerHTML += `
+                <div class="bg-white rounded-xl shadow-sm overflow-hidden border border-gray-100 flex flex-col">
+                    <img src="${imgPath}" class="w-full aspect-video object-cover" onerror="this.src='https://via.placeholder.com/400x225?text=No+Preview'">
+                    <div class="p-4 flex-grow">
+                        <div class="flex justify-between items-start mb-2">
+                            <h3 class="font-bold text-sm text-gray-800 leading-tight">${p.title}</h3>
+                            <span class="text-lg">${ICONS_MAP[p.activity?.toLowerCase().trim()] || '❓'}</span>
+                        </div>
+                        <div class="text-[10px] text-gray-400 font-bold uppercase mb-4">${p.date}</div>
+                        <button onclick="jumpToMap(${globalIdx})" class="w-full bg-gray-900 text-white py-2 rounded-lg text-xs font-bold hover:bg-indigo-600">SHOW ON MAP</button>
+                    </div>
+                </div>`;
+        });
+    }
+
+	/**
+     * Transitions to map, focuses on marker, and auto-loads track
+     * @param {number} idx - Global index in photoMarkers array
+     */
+    function jumpToMap(idx) {
+        switchView('map');
+        const p = photoMarkers[idx];
+        setTimeout(() => {
+            map.flyTo([p.lat, p.lon], 11);
+            if (p.gpx && p.gpx.length > 5 && !loadedTracks[idx]) {
+                loadGpxTrack(idx, true);
+            }
+            // Logic to open popup is already in renderMarkers (openId check)
+        }, 400);
+    }
+
+    	/* -------------------------------------------------------------------------
 	 * RELOAD DATA: Triggered by the button
 	 --------------------------------------------------------------------------*/
 	window.reloadData = function() {
@@ -427,57 +415,7 @@
 		});
 	};
 
-	/* -------------------------------------------------------------------------
-	 * INIT MAP define layers, place the appropriate map (overview or detail).
-	 --------------------------------------------------------------------------*/
-	function initMap() {
-		// Start at a generic point (e.g., center of Europe or [0,0]) 
-		// because we will immediately 'fly' to the right spot in the next step.
-		const startPos = [48.18, 14.17]; // Linz/Donau
-		map = L.map('map', { center: startPos, zoom: 11, zoomControl: false });
-		
-		overviewLayer = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', { maxZoom: 17 }).addTo(map);
-		detailLayer = L.tileLayer(`https://api.maptiler.com/maps/outdoor-v4/{z}/{x}/{y}@2x.png?key=${MAPTILER_KEY}`, { tileSize: 512, zoomOffset: -1, maxZoom: 19 });
-		
-		hikingLayer = L.tileLayer('https://tile.waymarkedtrails.org/hiking/{z}/{x}/{y}.png');
-		cyclingLayer = L.tileLayer('https://tile.waymarkedtrails.org/mtb/{z}/{x}/{y}.png');
 
-		map.on('zoomend', () => {
-			const currentZoom = map.getZoom();
-				
-			// Update the Zoom number inside of gear wheel panel
-			const zDisp = document.getElementById('zoom-level-display');
-			if (zDisp) zDisp.innerText = currentZoom;
-				
-			if (currentZoom >= switchThreshold) {
-				if (!map.hasLayer(detailLayer)) { 
-					detailLayer.addTo(map); 
-					map.removeLayer(overviewLayer); 
-					hikingLayer.bringToFront();
-					cyclingLayer.bringToFront();
-				}
-			} else {
-				if (!map.hasLayer(overviewLayer)) { 
-					overviewLayer.addTo(map); 
-					map.removeLayer(detailLayer); 
-					hikingLayer.bringToFront();
-					cyclingLayer.bringToFront();
-				}
-			}
-		});
-
-		//L.control.zoom({ position: 'bottomleft' }).addTo(map);
-		setupEvents();
-		populateYearDropdown();
-		renderMarkers();
-		
-		// Now that markers are rendered, decide where to look
-		const linkHandled = handleDeepLink(); 
-		if (!linkHandled) {
-			// If no deep link, go to the first visible marker based on sidebar
-			syncToFirstVisible();
-		}
-	}
 
 	/* -------------------------------------------------------------------------
 	 * SETUP the view to the first visible Marker. Spot at fixed ZOOM 11
@@ -967,115 +905,13 @@
         yrs.forEach(y => s.add(new Option(y, y)));
         s.onchange = (e) => { activeYear = e.target.value; renderMarkers(); };
     }
-    /* --- HYBRID VIEW LOGIC --- */
     
-    /**
-     * Switches between Portal (Grid) and Map (Leaflet)
-     * @param {string} view - 'portal' or 'map'
-     */
-    function switchView(view) {
-        const isMap = view === 'map';
-        document.getElementById('portal-view').style.display = isMap ? 'none' : 'block';
-        document.getElementById('map-view').style.display = isMap ? 'block' : 'none';
-        
-        // UI Feedback for buttons
-        document.getElementById('nav-portal').classList.toggle('opacity-50', isMap);
-        document.getElementById('nav-map').classList.toggle('opacity-50', !isMap);
-    
-        // Force Leaflet to recalculate size when becoming visible
-        if(isMap && map) {
-            setTimeout(() => map.invalidateSize(), 200);
-        }
-    }
-    
-    /**
-     * Updates the global year filter and refreshes all views
-     * @param {string} yr - The selected year (e.g., '2024' or 'All')
-     */
-    window.updateActiveYear = function(yr) {
-        activeYear = yr;
-        
-        // Sync UI elements
-        populateYearSidebar(); 
-        document.getElementById('current-year-label').innerText = yr === 'All' ? 'PORTAL' : `YEAR ${yr}`;
-        
-        // Refresh data displays
-        renderPortal(); 
-        renderMarkers(); // Your original function to filter markers on map
-    };
-    
-    /**
-     * Populates the sidebar with years from the dataset
-     */
-    function populateYearSidebar() {
-        // Extract unique years and sort descending
-        const yrs = ['All', ...new Set(photoMarkers.map(p => p.year.toString()))].sort().reverse();
-        const side = document.getElementById('sidebar-years');
-        
-        side.innerHTML = yrs.map(y => `
-            <div class="year-btn ${y === activeYear ? 'active' : ''}" onclick="updateActiveYear('${y}')">
-                ${y}
-            </div>`).join('');
-    }
-    
-    /**
-     * Renders the Portal Grid Cards
-     */
-    function renderPortal() {
-        const grid = document.getElementById('portal-grid');
-        grid.innerHTML = '';
-        
-        // Filter data based on sidebar selection
-        const filtered = photoMarkers.filter(p => activeYear === 'All' || p.year.toString() === activeYear);
-        
-        filtered.forEach((p) => {
-            const globalIdx = photoMarkers.indexOf(p);
-            const imgPath = (p.img) ? `${ASSET_BASE}/${p.year}/img/${p.img}` : '';
-            
-            grid.innerHTML += `
-                <div class="bg-white rounded-xl shadow-sm overflow-hidden border border-gray-100 flex flex-col">
-                    <img src="${imgPath}" class="w-full aspect-video object-cover" 
-                         onerror="this.src='https://via.placeholder.com/400x225?text=No+Preview'">
-                    <div class="p-4 flex-grow">
-                        <div class="flex justify-between items-start mb-2">
-                            <h3 class="font-bold text-sm text-gray-800 leading-tight">${p.title}</h3>
-                            <span class="text-lg">${ICONS_MAP[p.activity?.toLowerCase().trim()] || '❓'}</span>
-                        </div>
-                        <div class="text-[10px] text-gray-400 font-bold uppercase mb-4">${p.date}</div>
-                        <button onclick="jumpToMap(${globalIdx})" 
-                                class="w-full bg-gray-900 text-white py-2 rounded-lg text-xs font-bold hover:bg-indigo-600 transition-colors">
-                            SHOW ON MAP
-                        </button>
-                    </div>
-                </div>`;
-        });
-    }
-    
-    /**
-     * Transitions to map, focuses on marker, and auto-loads track
-     * @param {number} idx - Global index in photoMarkers array
-     */
-    function jumpToMap(idx) {
-        switchView('map');
-        const p = photoMarkers[idx];
-        
-        // Pan map to location
-        map.flyTo([p.lat, p.lon], 11);
-        
-        // Automatically load track if available and not already loaded
-        const hasTrack = (p.gpx && p.gpx.length > 5);
-        if (hasTrack && !loadedTracks[idx]) {
-            loadGpxTrack(idx, true); // Assuming your original function is named loadGpxTrack
-        }
-    
-        // Open the original popup after flight animation
-        setTimeout(() => {
-            const marker = currentMarkers.find(m => m._idx === idx);
-            if(marker) marker.openPopup();
-        }, 1200);
-    }
-    initDataFetch();
+    // START EVERYTHING
+    loadConfig().then(() => fetchSheetData());
+
 </script>
+	
 </body>
 </html>
+
 
