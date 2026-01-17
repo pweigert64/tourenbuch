@@ -1,358 +1,1080 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="de">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Alpine Retrospective v45 - Hybrid Edition</title>
+    <title>Tourenbuch - Hybrid View</title>
     
     <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet-gpx/1.7.0/gpx.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;800&family=Noto+Color+Emoji&display=swap" rel="stylesheet">
-    
+
     <style>
-        /* RESET & BASE */
-        html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; font-family: 'Inter', sans-serif; }
-        .noto { font-family: 'Noto Color Emoji', sans-serif; }
-
-        /* LAYOUT */
-        #main-layout { display: flex; height: 100vh; width: 100vw; }
-        
-        /* SIDEBAR */
-        #sidebar { width: 240px; background: white; border-right: 1px solid #e5e7eb; display: flex; flex-direction: column; z-index: 10001; }
-        .year-item { padding: 12px 24px; cursor: pointer; font-weight: 700; color: #64748b; border-left: 4px solid transparent; transition: 0.2s; }
-        .year-item:hover { background: #f8fafc; color: #4f46e5; }
-        .year-item.active { background: #eef2ff; color: #4f46e5; border-left-color: #4f46e5; }
-
-        /* CONTENT AREA */
-        #content-area { flex-grow: 1; display: flex; flex-direction: column; position: relative; }
-        #top-nav { height: 60px; background: white; border-bottom: 1px solid #e5e7eb; display: flex; align-items: center; justify-content: space-between; padding: 0 20px; z-index: 10000; }
-        
-        /* VIEWS */
-        #portal-view { position: absolute; inset: 60px 0 0 0; overflow-y: auto; padding: 25px; background: #f3f4f6; }
-        #map-view { position: absolute; inset: 60px 0 0 0; display: none; }
+        /* --- WRAPPER STYLES (Das neue Gerüst) --- */
+        #main-layout { display: flex; height: 100vh; width: 100vw; overflow: hidden; }
+        #sidebar { width: 240px; background: white; border-right: 1px solid #e5e7eb; display: flex; flex-direction: column; z-index: 11000; }
+        #content-area { flex-grow: 1; position: relative; display: flex; flex-direction: column; }
+        #top-nav { height: 60px; border-bottom: 1px solid #e5e7eb; display: flex; align-items: center; justify-content: space-between; padding: 0 20px; background: white; z-index: 10000; }
+        #portal-view { position: absolute; inset: 60px 0 0 0; overflow-y: auto; background: #f9fafb; padding: 20px; z-index: 5; }
+        #map-view { position: absolute; inset: 60px 0 0 0; z-index: 1; }
         #map { width: 100%; height: 100%; }
+        .year-btn { padding: 12px 20px; cursor: pointer; font-weight: 700; color: #64748b; border-left: 4px solid transparent; }
+        .year-btn.active { background: #eef2ff; color: #4f46e5; border-left-color: #4f46e5; }
 
-        /* ORIGINAL FLOATING CONTROLS */
-        .floating-container { position: absolute; z-index: 9999; display: flex; flex-direction: column; align-items: flex-end; gap: 10px; }
-        .pop-out-panel { background: white; padding: 15px; border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.2); min-width: 240px; display: none; flex-direction: column; gap: 10px; border: 1px solid #e5e7eb; max-height: 42dvh; overflow-y: auto; }
-        .circle-toggle { background: #4f46e5; color: white; width: 50px; height: 50px; border-radius: 50%; cursor: pointer; border: 3px solid white; font-size: 1.5rem; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 10px rgba(0,0,0,0.2); }
-        .filter-button { padding: 8px; font-size: 0.75rem; font-weight: 700; border-radius: 8px; cursor: pointer; border: 1px solid #d1d5db; text-align: center; width: 100%; }
-        .filter-button-active { background: #4f46e5 !important; color: white !important; }
+        /* RESET & LAYOUT: Stellt sicher, dass das Portal und die Karte den Platz voll ausnutzen */
+        html, body { 
+            margin: 0; 
+            padding: 0; 
+            width: 100%; 
+            height: 100%; 
+            overflow: hidden; /* Verhindert doppeltes Scrollen am Rand */
+        }
+        
+        /* Die Karte muss 100% des Containers (#map-view) füllen */
+        #map { 
+            width: 100%; 
+            height: 100%; /* Hier reicht 100%, da der Container #map-view schon die richtige Größe hat */
+            background: #f3f4f6; 
+        }
 
-        /* MARKER & POPUP STYLES (RETAINED) */
-        .photo-popup-img { width: 100%; border-radius: 0.4rem; object-fit: cover; height: 120px; margin-bottom: 5px; }
-        .hover-title { background: rgba(0, 0, 0, 0.8) !important; color: white !important; border: none !important; border-radius: 4px; padding: 4px 8px; font-size: 13px; }
-        .emoji-marker-outer { width: 26px!important; height: 26px!important; border-radius: 50%; border: 2px solid white; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 5px rgba(0,0,0,0.2); }
-        .marker-ski { background: #4f46e5; } .marker-hike { background: #b54708; } .marker-climb { background: #dc2626; } .marker-bike { background: #065f46; } .marker-bike-hike { background: #f97316; } .marker-trip { background: #9333ea; }
-        .emoji-marker-inner { font-size: 11pt; background: white; border-radius: 50%; width: 18px; height: 18px; display: flex; align-items: center; justify-content: center; }
-        .track-label { background: rgba(255, 255, 255, 0.9); border: 1px solid #999; padding: 1px 5px; font-weight: bold; border-radius: 4px; font-size: 10px; color: #333; }
+		/* SHARED FLOATING LAYOUT: Used for both Top and Bottom groups */
+		.floating-container { 
+			position: absolute; 
+			z-index: 9999; 
+			display: flex; 
+			flex-direction: column; 
+			align-items: flex-end; 
+			gap: 10px; 
+		}
+
+		/* THE POP-OUT PANELS: Unified style for both Map and Activity menus */
+		.pop-out-panel { 
+			background: white; 
+			padding: 15px; 
+			border-radius: 12px; 
+			box-shadow: 0 10px 25px rgba(0,0,0,0.2); 
+			min-width: 240px; 
+			display: none; /* Toggled via JS to 'flex' */
+			flex-direction: column; 
+			gap: 10px; 
+			border: 1px solid #e5e7eb; 
+			
+			/* LANDSCAPE OPTIMIZATION */
+			max-height: 42dvh;    /* Prevents the panel from ever being taller than half the screen */
+			overflow-y: auto;     /* Adds a scrollbar if the menu is too tall */
+			-webkit-overflow-scrolling: touch; 
+		}
+
+		/* THE CIRCLE BUTTONS (Map Icon and Gear Icon) */
+		.circle-toggle { 
+			background: #4f46e5; 
+			color: white; 
+			width: 50px; 
+			height: 50px; 
+			border-radius: 50%; 
+			cursor: pointer; 
+			border: 3px solid white; 
+			font-size: 1.5rem; 
+			display: flex; 
+			align-items: center; 
+			justify-content: center; 
+			box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+		}
+
+		/* INTERNAL ELEMENTS */
+		#zoom-level-display {
+			background: #f3f4f6; color: #374151;
+			padding: 2px 6px; border-radius: 4px;
+			font-family: monospace; font-weight: bold;
+		}
+		
+		#year-select {
+			cursor: pointer;
+			border: 1px solid #d1d5db;
+			outline: none;
+		}
+		#year-select:focus {
+			border-color: #4f46e5;
+		}
+
+		.filter-button { 
+			padding: 8px; font-size: 0.75rem; font-weight: 700; border-radius: 8px;
+			cursor: pointer; border: 1px solid #d1d5db; text-align: center; width: 100%; 
+		}
+		.filter-button-active { background: #4f46e5 !important; color: white !important; }
+
+		/* Marker Styles */
+		.emoji-marker-outer { width: 26px!important; height: 26px!important; border-radius: 50%; border: 2px solid white; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 5px rgba(0,0,0,0.2); }
+		.marker-ski { background: #4f46e5; } 
+		.marker-hike { background: #b54708; } 
+		.marker-climb { background: #dc2626; } 
+		.marker-bike { background: #065f46; } 
+		.marker-bike-hike { background: #f97316; }
+		.marker-trip { background: #9333ea; } 
+		.marker-unknown { background: #6b7280; } 
+		
+		.emoji-marker-inner { font-size: 11pt; background: white; border-radius: 50%; width: 18px; height: 18px; display: flex; align-items: center; justify-content: center; }
+		
+		/* Activities Popup & Title Styling */
+		.leaflet-popup-content { width: 200px !important; margin: 10px; }
+		.popup-title { 
+			font-size: 10px; line-height: 1.3; margin: 5px 0; font-weight: bold;
+			display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+			overflow: hidden; text-overflow: ellipsis; text-align: center;
+		}
+		.photo-popup-img { width: 100%; border-radius: 0.4rem; object-fit: cover; height: 120px; margin-bottom: 5px; }
+		
+		.track-label { 
+			background: rgba(255, 255, 255, 0.9); border: 1px solid #999; padding: 1px 5px; 
+			font-weight: bold; border-radius: 4px; font-size: 10px; color: #333; 
+			box-shadow: 2px 2px 5px rgba(0,0,0,0.1); white-space: nowrap;
+		}
+		
+		/* Styling for the Hover Tooltip */
+		.hover-title {
+			background: rgba(0, 0, 0, 0.8) !important;
+			color: white !important;
+			border: none !important;
+			border-radius: 4px;
+			padding: 4px 8px;
+			font-size: 13px;
+		}
+
+		/* This styles the arrow to match the black background */
+		.leaflet-tooltip-top.hover-title:before {
+			border-top-color: rgba(0, 0, 0, 0.8);
+		}
+		.leaflet-tooltip-right:before, .leaflet-tooltip-left:before { display: none; }
     </style>
 </head>
 <body>
-
 <div id="main-layout">
     <aside id="sidebar">
-        <div class="p-5 border-b flex items-center gap-2">
-            <span class="noto text-2xl">🏔️</span>
-            <span class="font-black tracking-tighter text-gray-800">RETROSPECTIVE</span>
-        </div>
-        <div id="year-menu" class="flex-grow overflow-y-auto pt-2"></div>
+        <div class="p-5 font-black text-xl border-b tracking-tighter">🏔️ TOUREN</div>
+        <div id="sidebar-years" class="flex-grow overflow-y-auto pt-2"></div>
     </aside>
 
     <div id="content-area">
         <header id="top-nav">
-            <div id="view-title" class="font-black text-indigo-600 uppercase tracking-widest">Portal</div>
-            <div class="flex gap-2 bg-gray-100 p-1 rounded-xl">
-                <button id="btn-portal" onclick="switchView('portal')" class="px-5 py-2 rounded-lg bg-white shadow-sm transition-all">🗓️</button>
-                <button id="btn-map" onclick="switchView('map')" class="px-5 py-2 rounded-lg opacity-50 transition-all">🌍</button>
-            </div>
+             <div id="current-year-label" class="font-black text-indigo-600 tracking-widest uppercase">PORTAL</div>
+             <div class="flex gap-2 bg-gray-100 p-1 rounded-xl">
+                <button onclick="switchView('portal')" id="nav-portal" class="px-4 py-2 rounded-lg bg-white shadow-sm">🗓️</button>
+                <button onclick="switchView('map')" id="nav-map" class="px-4 py-2 rounded-lg opacity-50">🌍</button>
+             </div>
         </header>
 
         <section id="portal-view">
-            <div id="portal-grid" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 max-w-7xl mx-auto"></div>
+            <div id="portal-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-7xl mx-auto"></div>
         </section>
 
-        <section id="map-view">
-            <div id="map"></div>
+        <section id="map-view" style="display:none;">
+            <div id="map-container">
+            	<div id="map-settings-group" class="floating-container" style="top: 65px; right: 15px;">
+            		<button class="circle-toggle" onclick="togglePanel('map-panel')">🗺️</button>
+            		<div id="map-panel" class="pop-out-panel">
+            			<div class="bg-indigo-50 p-3 rounded-lg flex flex-col gap-2 text-[10px] font-bold">
+            				<div class="flex justify-between border-b border-indigo-200 pb-1">
+            					<span class="text-indigo-600 uppercase">Zoom</span>
+            					<span id="zoom-level-display">11</span>
+            				</div>
+            				<div class="flex justify-between">
+            					<span>SWITCH AT:</span>
+            					<span id="threshold-display">16</span>
+            				</div>
+            				<input type="range" id="threshold-slider" min="1" max="17" value="16" step="1" class="w-full cursor-pointer">
+            			</div>
+            			<div class="grid grid-cols-2 gap-2 mt-1">
+            				<button id="hike-layer-btn" class="filter-button border text-[9px] py-2 bg-white">🏔️ HIKE</button>
+            				<button id="bike-layer-btn" class="filter-button border text-[9px] py-2 bg-white">🚲 MTB</button>
+            			</div>
+            		</div>
+            	</div>
             
-            <div id="activity-settings-group" class="floating-container" style="bottom: 20px; right: 15px;">
-                <div id="activity-panel" class="pop-out-panel">
-                    <div class="text-[10px] font-bold text-gray-400 uppercase">Activity Filter:</div>
-                    <div class="grid grid-cols-6 gap-0.5 mb-2">
-                        <button class="filter-button filter-button-active p-1 text-base noto" data-activity="ski">❄️</button>
-                        <button class="filter-button filter-button-active p-1 text-base noto" data-activity="hike">🥾</button>
-                        <button class="filter-button filter-button-active p-1 text-base noto" data-activity="climb">⛰️</button>
-                        <button class="filter-button filter-button-active p-1 text-base noto" data-activity="bike">🚴</button>
-                        <button class="filter-button filter-button-active p-1 text-base noto" data-activity="bike+hike">🚵</button>
-                        <button class="filter-button filter-button-active p-1 text-base noto" data-activity="trip">🏛️</button>
-                    </div>
-                    
-                    <input type="text" id="power-search" placeholder="title:<>,tags:..." onkeydown="if(event.key === 'Enter') handleDeepLink()" class="w-full bg-gray-800 text-white p-2 rounded text-[10px] mb-2">
-                    
-                    <div class="grid grid-cols-2 gap-1.5">
-                        <button class="bg-emerald-600 text-white p-2 rounded text-[10px] font-bold" onclick="showAllTracks()">🗺️ ALL TRACKS</button>
-                        <button id="clear-tracks-btn" class="bg-gray-300 text-white p-2 rounded text-[10px] font-bold cursor-not-allowed" onclick="clearAllTracks()">🗑️ CLEAR</button>
-                    </div>
-                </div>
-                <button class="circle-toggle" onclick="togglePanel('activity-panel')">⚙️</button>
-            </div>
-
-            <div id="map-settings-group" class="floating-container" style="top: 15px; right: 15px;">
-                <button class="circle-toggle" onclick="togglePanel('map-panel')">🗺️</button>
-                <div id="map-panel" class="pop-out-panel">
-                    <div class="bg-indigo-50 p-3 rounded-lg flex flex-col gap-2 text-[10px] font-bold">
-                        <div class="flex justify-between border-b border-indigo-200 pb-1">
-                            <span class="text-indigo-600 uppercase">Zoom</span>
-                            <span id="zoom-level-display">11</span>
-                        </div>
-                        <div class="flex justify-between">
-                            <span>SWITCH AT:</span>
-                            <span id="threshold-display">16</span>
-                        </div>
-                        <input type="range" id="threshold-slider" min="1" max="17" value="16" step="1" class="w-full cursor-pointer">
-                    </div>
-                </div>
-            </div>
+            	<div id="activity-settings-group" class="floating-container" style="bottom: 40px; right: 15px;">
+            		<div id="activity-panel" class="pop-out-panel" style="margin-bottom: 8px; gap: 4px;">
+            			
+            			<div class="text-[10px] font-bold text-gray-400 uppercase mb-0.5">Activity Filter:</div>
+            
+            			<div class="flex items-center justify-between gap-2 mb-1 bg-gray-50 p-1 rounded-md">
+            				<span class="text-[10px] font-bold text-gray-400 uppercase">Year:</span>
+            				<select id="year-select" class="w-24 text-sm p-0.5 border rounded font-bold bg-white"></select>
+            			</div>
+            
+            			<div class="grid grid-cols-6 gap-0.5 mb-1">
+            				<button class="filter-button filter-button-active p-1 text-base" data-activity="ski">❄️</button>
+            				<button class="filter-button filter-button-active p-1 text-base" data-activity="hike">🥾</button>
+            				<button class="filter-button filter-button-active p-1 text-base" data-activity="climb">⛰️</button>
+            				<button class="filter-button filter-button-active p-1 text-base" data-activity="bike">🚴</button>
+            				<button class="filter-button filter-button-active p-1 text-base" data-activity="bike+hike">🚵</button>
+            				<button class="filter-button filter-button-active p-1 text-base" data-activity="trip">🏛️</button>
+            			</div>
+            			
+            			<div class="pt-1 border-t border-gray-100">
+            				<div class="text-[10px] font-bold text-gray-400 uppercase mb-1">Track Control:</div>
+            				<div class="search-group" style="display: flex; gap: 4px; margin-bottom: 8px; align-items: center;">
+            					<input type="text" id="power-search" 
+            						   placeholder="e.g: title:<>,year:<>,activity:..." 
+            						   onkeydown="if(event.key === 'Enter') handleDeepLink()"
+            						   style="flex-grow: 1; background: #1f2937; color: white; border: 1px solid #374151; padding: 4px 8px; border-radius: 4px; font-size: 11px; height: 24px;">
+            					
+            					<button onclick="clearPowerSearch()" 
+            							title="Clr Tracks & Search"
+            							style="background: none; border: none; cursor: pointer; font-size: 11px; padding: 0 5px; line-height: 24px;">
+            							❌
+            					</button>
+            				</div>
+            				<div class="grid grid-cols-2 gap-1.5">
+            					<button id="show-all-tracks-btn" class="filter-button bg-emerald-600 text-white border-none" onclick="showAllTracks()">🗺️ ALL</button>
+            					<button id="clear-tracks-btn" class="filter-button bg-gray-300 text-white border-none cursor-not-allowed" onclick="clearAllTracks()">🗑️ CLR</button>
+            				</div>
+            			</div>
+            
+            			<div class="mt-2 text-[9px] font-bold text-gray-300 border-t pt-2">
+            				<button onclick="reloadData()" class="hover:text-amber-500 transition-colors uppercase flex justify-between w-full">
+            					<span>🔄 Refresh Sheet Data</span>
+            					<span id="reload-status">IDLE</span>
+            				</button>
+            			</div>
+            		</div>
+            		<button class="circle-toggle" onclick="togglePanel('activity-panel')">⚙️</button>
+            	</div>
+            	
+                <div id="map"></div>
+            </div>  
         </section>
     </div>
 </div>
 
 <script>
-    /* --- CONFIG & STATE (RETAINED) --- */
     const ASSET_BASE = 'https://raw.githubusercontent.com/pweigert64/tourenbuch/main';
-    const COLORS = { 'ski': '#4f46e5', 'hike': '#b54708', 'climb': '#dc2626', 'bike': '#065f46', 'bike+hike': '#f97316', 'trip': '#9333ea', 'unknown': '#6b7280' };
-    const ICONS_MAP = { 'ski': '❄️', 'hike': '🥾', 'climb': '⛰️', 'bike': '🚴', 'bike+hike': '🚵', 'trip': '🏛️' };
+	//const ASSET_BASE = '.';
+    const COLORS = { 
+        'ski': '#4f46e5', 
+        'hike': '#b54708', 
+        'climb': '#dc2626', 
+        'bike': '#065f46', 
+        'bike+hike': '#f97316',
+		'trip': '#9333ea',   // Purple
+        'unknown': '#6b7280' 
+    };
+	// GLOBAL ICON MAP - The single source of truth
+	const ICONS_MAP = { 
+		'ski': '❄️', 'hike': '🥾', 'climb': '⛰️', 
+		'bike': '🚴', 'bike+hike': '🚵', 'trip': '🏛️' 
+	};
 
-    let map, overviewLayer, detailLayer;
-    let photoMarkers = [], currentMarkers = [], loadedTracks = {};
+    let map, overviewLayer, detailLayer, hikingLayer, cyclingLayer;
+    let photoMarkers = [], currentMarkers = [], loadedTracks = {}, activeLines = {}; 
     let activeFilters = { ski: true, hike: true, climb: true, bike: true, 'bike+hike': true, 'trip': true, 'unknown': true };
-    let activeYear = 'All', switchThreshold = 16, MAPTILER_KEY, SHEETS_CSV_URL;
+    let activeYear = 'All', isInitialLoad = true, switchThreshold = 16; 
+    let MAPTILER_KEY, SHEETS_CSV_URL;
 
-    async function init() {
-        await loadConfig();
-        await fetchSheetData();
-        setupEvents();
-    }
+	/* -------------------------------------------------------------------------
+	 * TOGGLE PANEL opens gear/map button.
+	 --------------------------------------------------------------------------*/
+	function togglePanel(panelId) {
+		const target = document.getElementById(panelId);
+		
+		// Check current state
+		const isCurrentlyVisible = target.style.display === 'flex';
+		
+		// 1. Hide ALL panels first so they don't overlap
+		document.querySelectorAll('.pop-out-panel').forEach(p => {
+			p.style.display = 'none';
+		});
+		
+		// 2. If it was hidden, show it now
+		if (!isCurrentlyVisible) {
+			target.style.display = 'flex';
+		}
+	}
 
-    async function loadConfig() {
-        const response = await fetch(`${ASSET_BASE}/config.js?t=${Date.now()}`);
-        const text = await response.text();
-        MAPTILER_KEY = text.match(/MAPTILER_KEY\s*=\s*['"]([^'"]+)['"]/)[1];
-        SHEETS_CSV_URL = text.match(/SHEETS_CSV_URL\s*=\s*['"]([^'"]+)['"]/)[1];
-    }
+	/* -------------------------------------------------------------------------
+	 * LOAD CONFIG load config.ts parameters:
+	 *   - MAPTILER_KEY
+	 *   - GOOGLE_SHEETS_URL holding the activities basic data
+	 --------------------------------------------------------------------------*/
+	async function loadConfig() {
+		const response = await fetch(`${ASSET_BASE}/config.js?t=${new Date().getTime()}`);
+		if (!response.ok) throw new Error("Could not find config.js on GitHub.");
+		const text = await response.text();
+		
+		const keyMatch = text.match(/MAPTILER_KEY\s*=\s*['"]([^'"]+)['"]/);
+		const urlMatch = text.match(/SHEETS_CSV_URL\s*=\s*['"]([^'"]+)['"]/);
+		
+		if (keyMatch && urlMatch) {
+			MAPTILER_KEY = keyMatch[1];
+			SHEETS_CSV_URL = urlMatch[1];
+		} else {
+			throw new Error("config.js exists but variables are unreadable.");
+		}
+	}
 
+    /* -------------------------------------------------------------------------
+     * FETCH SHEET DATA: The core logic to get data from Google-Sheets
+     --------------------------------------------------------------------------*/
     async function fetchSheetData() {
-        const response = await fetch(`${SHEETS_CSV_URL}&t=${Date.now()}`);
-        const csvText = await response.text();
-        const lines = csvText.split(/\r?\n/);
-        const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
+    	try {
+    		if (!SHEETS_CSV_URL) await loadConfig(); 
+    		
+    		const response = await fetch(`${SHEETS_CSV_URL}&t=${new Date().getTime()}`);
+    		const csvText = await response.text();
+    		const lines = csvText.split(/\r?\n/);
+    		const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
+    
+    		photoMarkers = lines.slice(1).filter(l => l.trim() !== "").map(line => {
+    			const values = line.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/);
+    			const obj = {};
+    			headers.forEach((h, i) => {
+    				let val = values[i] ? values[i].replace(/^"|"$/g, '').trim() : "";
+    				if (h === 'lat' || h === 'lon') val = parseFloat(val);
+    				obj[h] = val;
+    			});
+    			return obj;
+    		});
+    
+    		if (!map) {
+                // 1. DYNAMIC YEAR CALCULATION
+                // Extract unique years, remove invalid data, sort descending
+                const yearsInData = [...new Set(photoMarkers.map(p => p.year.toString()))]
+                                    .filter(y => y && y !== "undefined" && y.length === 4)
+                                    .sort((a, b) => b - a);
+                
+                // Set global activeYear to the newest entry found in your Sheet
+                activeYear = yearsInData.length > 0 ? yearsInData[0] : 'All';
+                console.log("Initial Active Year detected:", activeYear);
+            
+                // 2. INITIALIZE COMPONENTS
+                initMap();             // Setup Leaflet
+                populateYearSidebar(); // Build the Sidebar buttons
+                
+                // 3. SET INITIAL VIEW
+                // Start with the Portal view
+                switchView('portal'); 
+                
+            } else {
+                // REFRESH LOGIC (for manual reloads or data updates)
+                populateYearSidebar();
+                renderPortal();
+                renderMarkers();
+            }
+                		
+    		// --- THE DEEP LINK TRIGGER ---
+    		// We call it here because photoMarkers and currentMarkers are now ready!
+    		const urlParams = new URLSearchParams(window.location.search);
+    		if (urlParams.toString() !== "") {
+    			// If there is a Deep Link in the URL, re-apply it
+    			handleDeepLink();
+    		} else {
+    			// Otherwise, re-apply the current Sidebar filters (Year/Activity)
+    			applyViewFilter(null, false); // but do NOT automatically load tracks 
+    		}		
+    		return true; 
+    	} catch (e) {
+    		console.error("Fetch Error:", e);
+    		return false; 
+    	}
+    }
+    
+	/* -------------------------------------------------------------------------
+	 * INITIAL DATA FETCH: Only called once on page load
+	 --------------------------------------------------------------------------*/
+	async function initDataFetch() {
+		await fetchSheetData();
+	}
 
-        photoMarkers = lines.slice(1).filter(l => l.trim() !== "").map(line => {
-            const values = line.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/);
-            const obj = {};
-            headers.forEach((h, i) => {
-                let val = values[i] ? values[i].replace(/^"|"$/g, '').trim() : "";
-                if (h === 'lat' || h === 'lon') val = parseFloat(val);
-                obj[h] = val;
-            });
-            return obj;
-        });
+	/* -------------------------------------------------------------------------
+	 * RELOAD DATA: Triggered by the button
+	 --------------------------------------------------------------------------*/
+	window.reloadData = function() {
+		// 1. Get the status label from the bottom of your panel
+		const status = document.getElementById('reload-status');
+		if (status) {
+			status.innerText = "LOADING...";
+			status.style.color = "#f59e0b"; // Orange
+		}
 
+		// 2. Wipe the current map state
+		// We remove the markers manually since we aren't using a cluster group yet
+		currentMarkers.forEach(m => map.removeLayer(m));
+		currentMarkers = [];
+		
+		// Clear the tracks using your existing function
+		clearAllTracks();
+		
+		// Empty the data array
+		photoMarkers = []; 
+
+		// 3. Trigger the fetch and handle the result
+		fetchSheetData().then((success) => {
+			if (status) {
+				if (success) {
+					status.innerText = "DONE!";
+					status.style.color = "#10b981"; // Green
+				} else {
+					status.innerText = "ERROR";
+					status.style.color = "#ef4444"; // Red
+				}
+				
+				// Reset to idle after 3 seconds
+				setTimeout(() => { 
+					status.innerText = "IDLE"; 
+					status.style.color = ""; 
+				}, 3000);
+			}
+		});
+	};
+
+	/* -------------------------------------------------------------------------
+	 * INIT MAP define layers, place the appropriate map (overview or detail).
+	 --------------------------------------------------------------------------*/
+	function initMap() {
+		// Start at a generic point (e.g., center of Europe or [0,0]) 
+		// because we will immediately 'fly' to the right spot in the next step.
+		const startPos = [48.18, 14.17]; // Linz/Donau
+		map = L.map('map', { center: startPos, zoom: 11, zoomControl: false });
+		
+		overviewLayer = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', { maxZoom: 17 }).addTo(map);
+		detailLayer = L.tileLayer(`https://api.maptiler.com/maps/outdoor-v4/{z}/{x}/{y}@2x.png?key=${MAPTILER_KEY}`, { tileSize: 512, zoomOffset: -1, maxZoom: 19 });
+		
+		hikingLayer = L.tileLayer('https://tile.waymarkedtrails.org/hiking/{z}/{x}/{y}.png');
+		cyclingLayer = L.tileLayer('https://tile.waymarkedtrails.org/mtb/{z}/{x}/{y}.png');
+
+		map.on('zoomend', () => {
+			const currentZoom = map.getZoom();
+				
+			// Update the Zoom number inside of gear wheel panel
+			const zDisp = document.getElementById('zoom-level-display');
+			if (zDisp) zDisp.innerText = currentZoom;
+				
+			if (currentZoom >= switchThreshold) {
+				if (!map.hasLayer(detailLayer)) { 
+					detailLayer.addTo(map); 
+					map.removeLayer(overviewLayer); 
+					hikingLayer.bringToFront();
+					cyclingLayer.bringToFront();
+				}
+			} else {
+				if (!map.hasLayer(overviewLayer)) { 
+					overviewLayer.addTo(map); 
+					map.removeLayer(detailLayer); 
+					hikingLayer.bringToFront();
+					cyclingLayer.bringToFront();
+				}
+			}
+		});
+
+		//L.control.zoom({ position: 'bottomleft' }).addTo(map);
+		setupEvents();
+		populateYearDropdown();
+		renderMarkers();
+		
+		// Now that markers are rendered, decide where to look
+		const linkHandled = handleDeepLink(); 
+		if (!linkHandled) {
+			// If no deep link, go to the first visible marker based on sidebar
+			syncToFirstVisible();
+		}
+	}
+
+	/* -------------------------------------------------------------------------
+	 * SETUP the view to the first visible Marker. Spot at fixed ZOOM 11
+	 --------------------------------------------------------------------------*/
+	window.syncToFirstVisible = function() {
+		// 1. Find the first marker that survives current Sidebar filters
+		const currentSelection = photoMarkers.filter((p) => {
+			const rawAct = (p.activity) ? p.activity.toLowerCase().trim() : '';
+			const activityKey = ICONS_MAP.hasOwnProperty(rawAct) ? rawAct : 'unknown';
+			const yearMatch = (activeYear === 'All' || p.year.toString() === activeYear);
+			const filterMatch = (activityKey === 'unknown') || activeFilters[activityKey];
+			return yearMatch && filterMatch;
+		});
+
+		if (currentSelection.length > 0) {
+			const leader = currentSelection[0];
+			const idx = photoMarkers.indexOf(leader);
+			
+			// 2. Center and Zoom (using your preferred zoom 11)
+			map.flyTo([leader.lat, leader.lon], 11, { duration: 1.5 });
+
+			// 3. Open the popup
+			if (allMarkers[idx]) {
+				setTimeout(() => allMarkers[idx].openPopup(), 1600);
+			}
+		}
+	};
+
+	/* -------------------------------------------------------------------------
+	 * SETUP EVENTS assigns the handlefunctions to the defined events.
+	 --------------------------------------------------------------------------*/
+	function setupEvents() {
+		document.querySelectorAll('[data-activity]').forEach(btn => {
+				btn.onclick = () => {
+					// 1. Get the key (e.g., 'trip') from the button
+					const activityKey = btn.dataset.activity; 
+					
+					// 2. Toggle the true/false value in our Global State
+					activeFilters[activityKey] = !activeFilters[activityKey];
+					
+					// 3. Update the button's look (Purple if active, Gray if not)
+					btn.classList.toggle('filter-button-active', activeFilters[activityKey]);
+					
+					// 4. Refresh the map to show/hide the markers
+					renderMarkers();
+				};
+			});
+		document.getElementById('hike-layer-btn').onclick = function() {
+			map.hasLayer(hikingLayer) ? map.removeLayer(hikingLayer) : hikingLayer.addTo(map);
+			this.classList.toggle('filter-button-active');
+		};
+		document.getElementById('bike-layer-btn').onclick = function() {
+			map.hasLayer(cyclingLayer) ? map.removeLayer(cyclingLayer) : cyclingLayer.addTo(map);
+			this.classList.toggle('filter-button-active');
+		};
+		document.getElementById('threshold-slider').oninput = (e) => {
+			switchThreshold = parseFloat(e.target.value);
+			document.getElementById('threshold-display').innerText = switchThreshold;
+		};
+	}
+	
+	/* -------------------------------------------------------------------------
+	 * LOAD GPX TRACK toggles tracks on and off. Optionally flying to bounds
+	 --------------------------------------------------------------------------*/
+	window.loadGpxTrack = function(idx, shouldZoom = true) {
+		const p = photoMarkers[idx];
+		const url = `${ASSET_BASE}/${p.year}/gpx/${p.gpx}`;
+		const color = COLORS[ICONS_MAP.hasOwnProperty(p.activity?.toLowerCase().trim()) ? p.activity.toLowerCase().trim() : 'unknown'];
+
+		map.closePopup();
+
+		if (loadedTracks[idx]) {
+			map.removeLayer(loadedTracks[idx].group);
+			delete loadedTracks[idx];
+			renderMarkers();
+			return;
+		}
+
+		const trackGroup = L.featureGroup().addTo(map);
+		const label = L.tooltip({ permanent: true, direction: 'right', offset: [15, 0], className: 'track-label' })
+			.setContent(p.title).setLatLng([p.lat, p.lon]);
+		trackGroup.addLayer(label);
+
+		const trackLayer = new L.GPX(url, {
+			async: true,
+			marker_options: { startIconUrl: '', endIconUrl: '' },
+			polyline_options: { color: color, weight: 5, opacity: 0.9, lineJoin: 'round' }
+		}).on('loaded', e => {
+			e.target.eachLayer(layer => {
+				if (layer instanceof L.Polyline) {
+					let dashPattern = p.activity === 'ski' ? '2, 12' : (p.activity === 'hike' || p.activity === 'climb' ? '10, 10' : '20, 5');
+					L.polyline(layer.getLatLngs(), { color: '#FFFFFF', weight: 2, opacity: 0.8, dashArray: dashPattern, lineCap: 'round', interactive: false }).addTo(trackGroup);
+				}
+			});
+			
+			// IMMEDIATE MOVE: As soon as THIS specific track is ready
+			if (shouldZoom) {
+				const b = e.target.getBounds();
+				if (b.isValid()) map.flyToBounds(b, { padding: [40, 40] });
+				else map.flyTo([p.lat, p.lon], 15);
+			}
+			
+			loadedTracks[idx] = { group: trackGroup, filename: p.gpx, layer: e.target };
+			renderMarkers();
+		}).on('error', () => {
+			if (shouldZoom) map.flyTo([p.lat, p.lon], 15);
+		});
+
+		trackGroup.addLayer(trackLayer);
+		return trackLayer;
+	};
+
+	/* -------------------------------------------------------------------------
+	 * HANDLE DEEP LINK extracts and applies the logic of parameterized search
+	 * Handles links like: ?album:Abc123&activity:ski
+	 --------------------------------------------------------------------------*/
+	window.handleDeepLink = function() {
+		const searchBox = document.getElementById('power-search');
+		if (!searchBox) return;
+
+		// --- PART 1: INITIAL URL LOAD (The Junk Filter) ---
+		// We only do this if the box is currently empty
+		if (searchBox.value.trim() === "") {
+			let urlParams;
+			try {
+				urlParams = new URLSearchParams(window.parent.location.search);
+				if (urlParams.toString() === "") urlParams = new URLSearchParams(window.location.search);
+			} catch (e) {
+				urlParams = new URLSearchParams(window.location.search);
+			}
+
+			const validKeys = ['title', 'activity', 'album', 'coords', 'year','country','tags'];
+			const hasValidKeys = validKeys.some(key => urlParams.has(key));
+			
+			if (hasValidKeys) {
+				let displayQuery = "";
+				validKeys.forEach(key => {
+					const val = urlParams.get(key);
+					if (val) displayQuery += `${key}:${val} `;
+				});
+				searchBox.value = displayQuery.trim();
+			}
+		}
+
+		// --- PART 2: THE SEARCH ENGINE (Manual or Auto) ---
+		const query = searchBox.value.toLowerCase().trim();
+		if (query === "") return;
+
+		let matches = photoMarkers;
+
+		// Forgiving helper: stops at space OR comma
+		const getParam = (key) => {
+			const regex = new RegExp(`${key}:([^ ,]+)`, 'i');
+			const match = query.match(regex);
+			return match ? match[1] : null;
+		};
+
+		const qTitle    = getParam('title');
+		const qActivity = getParam('activity');
+		const qAlbum    = getParam('album');
+		const qCoords   = getParam('coords');
+		const qYear     = getParam('year');
+		const qCountry  = getParam('country');
+		const qTags     = getParam('tags');
+		
+		// Filtering logic
+		if (qTitle)    matches = matches.filter(p => p.title && p.title.toLowerCase().includes(qTitle));
+		if (qActivity) matches = matches.filter(p => p.activity && p.activity.toLowerCase() === qActivity);
+		if (qAlbum)    matches = matches.filter(p => p.album && p.album.toLowerCase().endsWith(qAlbum));
+		if (qCoords)   matches = matches.filter(p => (p.lat + "," + p.lon) === qCoords);
+		if (qYear)     matches = matches.filter(p => p.year && p.year.toString() === qYear);
+		if (qCountry)  matches = matches.filter(p => p.country && p.country.toLowerCase() === qCountry); // Exact match for ISO
+		if (qTags)     matches = matches.filter(p => p.tags && p.tags.toLowerCase().includes(qTags));    // Partial for tags
+
+		// --- PART 3: EXECUTION ---
+		if (matches.length > 0) {
+			// This is the engine that clears tracks and flies the camera
+			applyViewFilter(matches, true); // TRUE = Load tracks and open popup
+			true; // Tells the initial load we found a link
+		} else {
+			console.log("Search executed but 0 results found for:", query);
+		}
+	};
+	
+	/* -------------------------------------------------------------------------
+	 * APPLY power-search clear button
+	 --------------------------------------------------------------------------*/
+	window.clearPowerSearch = function() {
+		const searchBox = document.getElementById('power-search');
+		if (searchBox) searchBox.value = "";
+		
+		// Wipe any tracks from a previous search
+		clearAllTracks(); 
+		
+		// Clear the URL junk
+		const newUrl = window.location.protocol + "//" + window.location.host + window.location.pathname;
+		window.history.pushState({path:newUrl}, '', newUrl);
+
+		// Sync back to the first visible marker in the current sidebar view
+		syncToFirstVisible();
+	};
+	
+	/* -------------------------------------------------------------------------
+	 * APPLY VIEW FILTER translates the selected markers onto the map,
+	 * opens the first popup (leaflet can open only one) and shows all available
+	 * tracks!
+	 --------------------------------------------------------------------------*/
+	window.applyViewFilter = function(customMatches = null, loadTracks = false) {
+		// If we have customMatches (Deep Link), use them. 
+		// Otherwise, use the standard Sidebar filters.
+		const targets = customMatches || photoMarkers.filter((p) => {
+			const rawAct = (p.activity) ? p.activity.toLowerCase().trim() : '';
+			const activityKey = ICONS_MAP.hasOwnProperty(rawAct) ? rawAct : 'unknown';
+			const yearMatch = (activeYear === 'All' || p.year.toString() === activeYear);
+			const filterMatch = (activityKey === 'unknown') || activeFilters[activityKey];
+			return yearMatch && filterMatch;
+		});
+		
+		// CRITICAL: Always clear the map BEFORE starting a new filter/search
+		clearAllTracks();
+
+		if (targets.length === 0) return;
+
+		let runningBounds = L.latLngBounds();
+		let processedCount = 0;
+
+		const finalize = () => {
+			processedCount++;
+			if (processedCount === targets.length && runningBounds.isValid()) {
+				map.flyToBounds(runningBounds, { padding: [40, 40], duration: 1.5 });
+				
+				// OPEN POPUP IF:
+				// 1. It's a Deep Link/Power Search (customMatches exists)
+				// 2. OR it's the Initial Load (Sidebar is "All" and no tracks are loaded yet)
+				const isInitialLoad = !customMatches && activeYear === 'All'; 
+				
+				if (customMatches || isInitialLoad) {
+					const firstMarkerData = targets[0];
+					const firstIdx = photoMarkers.indexOf(firstMarkerData);
+					if (allMarkers[firstIdx]) {
+						// Small delay to let flyToBounds finish so the popup is centered
+						setTimeout(() => allMarkers[firstIdx].openPopup(), 1600);
+					}
+				}
+			}
+		};
+		
+		targets.forEach(p => {
+			const idx = photoMarkers.indexOf(p);
+			runningBounds.extend([p.lat, p.lon]); // include all markers into bounds
+
+			if (loadTracks && p.gpx && p.gpx.length > 5) {
+				const track = loadGpxTrack(idx, false);
+				track.on('loaded', e => {
+					const gb = e.target.getBounds();
+					if (gb.isValid()) runningBounds.extend(gb);
+					finalize();
+				});
+				track.on('error', finalize);
+			} else {
+				finalize();
+			}
+		});
+	};
+	
+	/* -------------------------------------------------------------------------
+	 * SHOW ALL TRACKS that are not already visible and match the active filters
+	 * Function triggered by gear wheel button!
+	 --------------------------------------------------------------------------*/
+	window.showAllTracks = function() {
+		let runningBounds = L.latLngBounds();
+		let processedCount = 0;
+		// power-search conflicts with showALL - so clear it!
+		const searchBox = document.getElementById('power-search');
+			if (searchBox) searchBox.value = "";
+			
+		// 1. Identify all markers that match current filters AND have a GPX file
+		const tracksToProcess = photoMarkers.filter((p) => {
+			const rawAct = (p.activity) ? p.activity.toLowerCase().trim() : '';
+			const activityKey = ICONS_MAP.hasOwnProperty(rawAct) ? rawAct : 'unknown';
+			const yearMatch = (activeYear === 'All' || p.year.toString() === activeYear);
+			const filterMatch = (activityKey === 'unknown') || activeFilters[activityKey];
+			
+			// --- THE NEPAL & TRIP FIX ---
+			// Only zoom to things that actually have a track to show
+			return yearMatch && filterMatch && p.gpx && p.gpx.length > 5;
+		});
+
+		if (tracksToProcess.length === 0) return;
+
+		// 2. The Final Master Zoom check
+		const finalizeMasterView = () => {
+			processedCount++;
+			if (processedCount === tracksToProcess.length && runningBounds.isValid()) {
+				map.flyToBounds(runningBounds, { padding: [40, 40], duration: 1.5 });
+			}
+		};
+
+		// 3. Process each track
+		tracksToProcess.forEach((p) => {
+			const idx = photoMarkers.indexOf(p);
+			
+			if (loadedTracks[idx]) {
+				// Already there? Just add its bounds to the master box
+				const b = loadedTracks[idx].group.getBounds();
+				if (b.isValid()) runningBounds.extend(b);
+				finalizeMasterView();
+			} else {
+				// New? Load it and extend view cumulatively
+				const track = loadGpxTrack(idx, false); 
+				track.on('loaded', e => {
+					const gb = e.target.getBounds();
+					if (gb.isValid()) {
+						runningBounds.extend(gb);
+						// Cumulative "stretching" move
+						map.flyToBounds(runningBounds, { padding: [40, 40], duration: 0.8 });
+					}
+					finalizeMasterView();
+				});
+				track.on('error', () => finalizeMasterView());
+			}
+		});
+	};
+	
+	/* -------------------------------------------------------------------------
+	 * CLEAR ALL TRACKS that are visible
+	 * Function triggered by gear wheel button!
+	 --------------------------------------------------------------------------*/	
+	window.clearAllTracks = function() {
+		// Loop through all currently active track groups
+		Object.keys(loadedTracks).forEach(idx => {
+			// Use .group because that's where we stored the LayerGroup
+			if (loadedTracks[idx] && loadedTracks[idx].group) {
+				map.removeLayer(loadedTracks[idx].group);
+			}
+		});
+		// Reset the tracking object so the map "forgets" what was loaded
+		loadedTracks = {};
+		// Refresh the UI/Markers
+		renderMarkers();
+	};
+
+	/* -------------------------------------------------------------------------
+	 * RENDER MARKERS on the map
+	 * Function drows the activity markers on the map and handles the popUp
+	 --------------------------------------------------------------------------*/	
+	function renderMarkers() {
+		let openId = null;
+		// Clean up existing markers and check if we need the "Clear" button in the sidebar
+		currentMarkers.forEach(m => { 
+			if(m.getPopup().isOpen()) openId = m._idx; 
+			map.removeLayer(m); 
+		});
+		currentMarkers = [];
+		
+		// cleanup existing Tracks
+		Object.keys(loadedTracks).forEach(idx => {
+			const p = photoMarkers[idx];
+			const rawAct = (p.activity) ? p.activity.toLowerCase().trim() : '';
+			const activityKey = ICONS_MAP.hasOwnProperty(rawAct) ? rawAct : 'unknown';
+			
+			// If the filter for this track is now OFF, remove the track
+			if (!activeFilters[activityKey]) {
+				map.removeLayer(loadedTracks[idx].group);
+				delete loadedTracks[idx];
+			}
+		});
+		
+		// stable clear Button logic ---
+		const clearBtn = document.getElementById('clear-tracks-btn');
+		if (clearBtn) {
+			const hasTracks = Object.keys(loadedTracks).length > 0;
+			
+			if (hasTracks) {
+				// Active State: Red
+				clearBtn.classList.remove('bg-gray-300', 'cursor-not-allowed');
+				clearBtn.classList.add('bg-red-600');
+				clearBtn.onclick = () => clearAllTracks();
+			} else {
+				// Inactive State: Grey
+				clearBtn.classList.remove('bg-red-600');
+				clearBtn.classList.add('bg-gray-300', 'cursor-not-allowed');
+				clearBtn.onclick = null; // Disable clicking
+			}
+		}
+		
+		photoMarkers.forEach((p, i) => {
+			const idx = i;
+			const rawAct = (p.activity) ? p.activity.toLowerCase().trim() : '';
+			
+			// 3. Determine Category and Icon
+			const isKnown = ICONS_MAP.hasOwnProperty(rawAct);
+			const activityKey = isKnown ? rawAct : 'unknown';
+			const displayIcon = isKnown ? ICONS_MAP[rawAct] : '❓';
+
+			// 4. Filter Logic (Year and Activity Type)
+			const yearMatch = (activeYear === 'All' || p.year.toString() === activeYear);
+			// If it's a known activity, check its filter; always match unknown
+			const filterMatch = (activityKey === 'unknown') || activeFilters[activityKey];
+
+			if (yearMatch && filterMatch && p.lat && p.lon) {
+				const active = !!loadedTracks[idx];
+				
+				// --- POPUP BUTTON LOGIC ---
+				
+				// Album Button Logic
+				const hasAlbum = (p.album && p.album.startsWith('http'));
+				const albumBtnClass = hasAlbum ? 'bg-indigo-900' : 'bg-gray-300 cursor-not-allowed';
+				const albumBtnText = hasAlbum ? '📸 ALBUM' : '🚫 NO ALBUM';
+				const albumBtnLink = hasAlbum ? `href="${p.album}" target="_blank"` : 'onclick="return false;"';
+
+				// Track Button Logic
+				const hasTrack = (p.gpx && p.gpx.length > 5);
+				let trackBtnClass, trackBtnText;
+
+				if (!hasTrack) {
+					trackBtnClass = 'bg-gray-300 cursor-not-allowed';
+					trackBtnText = '🚫 NO TRACK';
+				} else if (active) {
+					trackBtnClass = 'bg-gray-500'; // Gray means "Click to hide"
+					trackBtnText = '❌ HIDE';
+				} else {
+					trackBtnClass = 'bg-emerald-700'; // Green means "Click to show"
+					trackBtnText = '🗺️ TRACK';
+				}
+
+				// Image HTML
+				const imgHtml = (p.img && p.img.length > 4) 
+					? `<img src="${ASSET_BASE}/${p.year}/img/${p.img}" class="photo-popup-img" onerror="this.style.display='none'">` 
+					: '';
+				
+				// 5. Create the Marker Icon
+				const icon = L.divIcon({
+					className: `emoji-marker-outer marker-${activityKey.replace('+', '-')}`,
+					html: `<span class="emoji-marker-inner">${displayIcon}</span>`,
+					iconSize: [26, 26]
+				});
+
+				// 6. Build the Popup HTML
+				const content = `
+					<div class="text-center">
+						${imgHtml}
+						<div class="popup-title" title="${p.title}">${p.title}</div>
+						<div style="font-size: 9px; color: #666; margin-bottom: 8px;">
+							${displayIcon} ${p.activity || 'Archived'}
+						</div>
+						<div class="flex flex-row gap-2 justify-center">
+							<a ${albumBtnLink} class="flex-1 p-2 ${albumBtnClass} text-white text-[10px] font-bold rounded text-center">
+								${albumBtnText}
+							</a>
+							<button onclick="${hasTrack ? `loadGpxTrack(${idx})` : ''}" 
+									class="flex-1 p-2 ${trackBtnClass} text-white text-[10px] font-bold rounded">
+								${trackBtnText}
+							</button>
+						</div>
+					</div>`;
+
+				// 7. Add to Map
+				const m = L.marker([p.lat, p.lon], { icon, zIndexOffset: 1000 })
+					.bindPopup(content)
+					.bindTooltip(p.title, { 
+						direction: 'top', 
+						offset: [0, -15],
+						opacity: 0.9,
+						className: 'hover-title' // needs CSS for hover-title
+					})
+					.addTo(map);
+				m._idx = idx;
+				currentMarkers.push(m);
+				
+				// Re-open popup if it was open before the re-render
+				if((isInitialLoad && i === 0) || openId === idx) m.openPopup();
+			}
+		});
+		isInitialLoad = false;
+	}
+	
+	/* -------------------------------------------------------------------------
+	 * POPULATE YEAR DROP DOWN on the map
+	 * Function 
+	 --------------------------------------------------------------------------*/		
+    function populateYearDropdown() {
+        const s = document.getElementById('year-select');
+        if (!s) return;
         const yrs = ['All', ...new Set(photoMarkers.map(p => p.year.toString()))].sort().reverse();
-        document.getElementById('year-menu').innerHTML = yrs.map(y => `<div class="year-item" id="yr-${y}" onclick="selectYear('${y}')">${y}</div>`).join('');
+        s.innerHTML = '';
+        yrs.forEach(y => s.add(new Option(y, y)));
+        s.onchange = (e) => { activeYear = e.target.value; renderMarkers(); };
+    }
+    /* --- HYBRID VIEW LOGIC --- */
+    
+    /**
+     * Switches between Portal (Grid) and Map (Leaflet)
+     * @param {string} view - 'portal' or 'map'
+     */
+    function switchView(view) {
+        const isMap = view === 'map';
+        document.getElementById('portal-view').style.display = isMap ? 'none' : 'block';
+        document.getElementById('map-view').style.display = isMap ? 'block' : 'none';
         
-        initMap();
-        selectYear(yrs[1]); // Select latest real year by default
+        // UI Feedback for buttons
+        document.getElementById('nav-portal').classList.toggle('opacity-50', isMap);
+        document.getElementById('nav-map').classList.toggle('opacity-50', !isMap);
+    
+        // Force Leaflet to recalculate size when becoming visible
+        if(isMap && map) {
+            setTimeout(() => map.invalidateSize(), 200);
+        }
     }
-
-    function selectYear(yr) {
+    
+    /**
+     * Updates the global year filter and refreshes all views
+     * @param {string} yr - The selected year (e.g., '2024' or 'All')
+     */
+    window.updateActiveYear = function(yr) {
         activeYear = yr;
-        document.querySelectorAll('.year-item').forEach(el => el.classList.remove('active'));
-        document.getElementById(`yr-${yr}`).classList.add('active');
-        renderPortal();
-        renderMarkers();
+        
+        // Sync UI elements
+        populateYearSidebar(); 
+        document.getElementById('current-year-label').innerText = yr === 'All' ? 'PORTAL' : `YEAR ${yr}`;
+        
+        // Refresh data displays
+        renderPortal(); 
+        renderMarkers(); // Your original function to filter markers on map
+    };
+    
+    /**
+     * Populates the sidebar with years from the dataset
+     */
+    function populateYearSidebar() {
+        // Extract unique years and sort descending
+        const yrs = ['All', ...new Set(photoMarkers.map(p => p.year.toString()))].sort().reverse();
+        const side = document.getElementById('sidebar-years');
+        
+        side.innerHTML = yrs.map(y => `
+            <div class="year-btn ${y === activeYear ? 'active' : ''}" onclick="updateActiveYear('${y}')">
+                ${y}
+            </div>`).join('');
     }
-
-    function switchView(v) {
-        document.getElementById('portal-view').style.display = v === 'portal' ? 'block' : 'none';
-        document.getElementById('map-view').style.display = v === 'map' ? 'block' : 'none';
-        document.getElementById('view-title').innerText = v === 'portal' ? 'Portal' : 'World Map';
-        document.getElementById('btn-portal').classList.toggle('opacity-50', v !== 'portal');
-        document.getElementById('btn-map').classList.toggle('opacity-50', v !== 'map');
-        if(v === 'map') setTimeout(() => map.invalidateSize(), 200);
-    }
-
-    /* --- PORTAL RENDER --- */
+    
+    /**
+     * Renders the Portal Grid Cards
+     */
     function renderPortal() {
         const grid = document.getElementById('portal-grid');
         grid.innerHTML = '';
+        
+        // Filter data based on sidebar selection
         const filtered = photoMarkers.filter(p => activeYear === 'All' || p.year.toString() === activeYear);
         
-        filtered.forEach((p, idx) => {
-            const img = (p.img && p.img.length > 4) ? `${ASSET_BASE}/${p.year}/img/${p.img}` : '';
+        filtered.forEach((p) => {
+            const globalIdx = photoMarkers.indexOf(p);
+            const imgPath = (p.img) ? `${ASSET_BASE}/${p.year}/img/${p.img}` : '';
+            
             grid.innerHTML += `
-                <div class="bg-white rounded-xl overflow-hidden shadow-sm hover:translate-y-[-4px] transition-all">
-                    <img src="${img}" loading="lazy" class="w-full aspect-video object-cover" onerror="this.src='https://via.placeholder.com/400x225?text=No+Image'">
-                    <div class="p-4">
-                        <div class="flex justify-between items-start mb-1">
-                            <h3 class="font-bold text-sm h-10 overflow-hidden text-gray-800">${p.title}</h3>
-                            <span class="noto">${ICONS_MAP[p.activity?.toLowerCase().trim()] || '❓'}</span>
+                <div class="bg-white rounded-xl shadow-sm overflow-hidden border border-gray-100 flex flex-col">
+                    <img src="${imgPath}" class="w-full aspect-video object-cover" 
+                         onerror="this.src='https://via.placeholder.com/400x225?text=No+Preview'">
+                    <div class="p-4 flex-grow">
+                        <div class="flex justify-between items-start mb-2">
+                            <h3 class="font-bold text-sm text-gray-800 leading-tight">${p.title}</h3>
+                            <span class="text-lg">${ICONS_MAP[p.activity?.toLowerCase().trim()] || '❓'}</span>
                         </div>
-                        <div class="text-[10px] text-gray-400 font-bold mb-4 uppercase tracking-tighter">${p.date} • ${p.tags || ''}</div>
-                        <div class="flex gap-2">
-                            <a href="${p.album}" target="_blank" class="flex-1 bg-indigo-50 text-indigo-700 text-center py-2 rounded-lg text-[10px] font-bold">ALBUM</a>
-                            <button onclick="jumpToMarker(${photoMarkers.indexOf(p)})" class="flex-1 bg-gray-900 text-white py-2 rounded-lg text-[10px] font-bold">MAP</button>
-                        </div>
+                        <div class="text-[10px] text-gray-400 font-bold uppercase mb-4">${p.date}</div>
+                        <button onclick="jumpToMap(${globalIdx})" 
+                                class="w-full bg-gray-900 text-white py-2 rounded-lg text-xs font-bold hover:bg-indigo-600 transition-colors">
+                            SHOW ON MAP
+                        </button>
                     </div>
                 </div>`;
         });
     }
-
-    function jumpToMarker(idx) {
+    
+    /**
+     * Transitions to map, focuses on marker, and auto-loads track
+     * @param {number} idx - Global index in photoMarkers array
+     */
+    function jumpToMap(idx) {
         switchView('map');
         const p = photoMarkers[idx];
-        map.flyTo([p.lat, p.lon], 11);
-        const m = currentMarkers.find(m => m._idx === idx);
-        if(m) setTimeout(() => m.openPopup(), 1200);
-    }
-
-    /* --- RE-IMPLEMENTED MAP LOGIC (RETAINING ORIGINAL POPUP) --- */
-    function initMap() {
-        if(map) return;
-        map = L.map('map', { center: [48.18, 14.17], zoom: 11, zoomControl: false });
-        overviewLayer = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png').addTo(map);
-        detailLayer = L.tileLayer(`https://api.maptiler.com/maps/outdoor-v4/{z}/{x}/{y}@2x.png?key=${MAPTILER_KEY}`, { tileSize: 512, zoomOffset: -1 });
-
-        map.on('zoomend', () => {
-            const z = map.getZoom();
-            document.getElementById('zoom-level-display').innerText = z;
-            if (z >= switchThreshold) {
-                if (!map.hasLayer(detailLayer)) { detailLayer.addTo(map); map.removeLayer(overviewLayer); }
-            } else {
-                if (!map.hasLayer(overviewLayer)) { overviewLayer.addTo(map); map.removeLayer(detailLayer); }
-            }
-        });
-    }
-
-    function renderMarkers() {
-        if (!map) return;
-        let openId = null;
-        currentMarkers.forEach(m => { 
-            if(m.getPopup() && m.getPopup().isOpen()) openId = m._idx; 
-            map.removeLayer(m); 
-        });
-        currentMarkers = [];
-
-        photoMarkers.forEach((p, i) => {
-            const idx = i;
-            const rawAct = (p.activity) ? p.activity.toLowerCase().trim() : '';
-            const activityKey = ICONS_MAP.hasOwnProperty(rawAct) ? rawAct : 'unknown';
-            const displayIcon = ICONS_MAP[rawAct] || '❓';
-
-            if ((activeYear === 'All' || p.year.toString() === activeYear) && activeFilters[activityKey]) {
-                
-                // ORIGINAL POPUP LOGIC
-                const hasAlbum = (p.album && p.album.startsWith('http'));
-                const albumBtnClass = hasAlbum ? 'bg-indigo-900' : 'bg-gray-300 cursor-not-allowed';
-                const albumBtnText = hasAlbum ? '📸 ALBUM' : '🚫 NO ALBUM';
-                const albumBtnLink = hasAlbum ? `href="${p.album}" target="_blank"` : 'onclick="return false;"';
-
-                const hasTrack = (p.gpx && p.gpx.length > 5);
-                const active = !!loadedTracks[idx];
-                let trackBtnClass = hasTrack ? (active ? 'bg-gray-500' : 'bg-emerald-700') : 'bg-gray-300 cursor-not-allowed';
-                let trackBtnText = hasTrack ? (active ? '❌ HIDE' : '🗺️ TRACK') : '🚫 NO TRACK';
-
-                const imgHtml = (p.img && p.img.length > 4) ? `<img src="${ASSET_BASE}/${p.year}/img/${p.img}" class="photo-popup-img">` : '';
-
-                const icon = L.divIcon({
-                    className: `emoji-marker-outer marker-${activityKey.replace('+', '-')}`,
-                    html: `<span class="emoji-marker-inner">${displayIcon}</span>`,
-                    iconSize: [26, 26]
-                });
-
-                const content = `
-                    <div class="text-center">
-                        ${imgHtml}
-                        <div class="popup-title font-bold text-[10px] my-1">${p.title}</div>
-                        <div class="flex gap-1 mt-2">
-                            <a ${albumBtnLink} class="flex-1 p-2 ${albumBtnClass} text-white text-[9px] font-bold rounded text-center">${albumBtnText}</a>
-                            <button onclick="${hasTrack ? `loadGpxTrack(${idx})` : ''}" class="flex-1 p-2 ${trackBtnClass} text-white text-[9px] font-bold rounded">${trackBtnText}</button>
-                        </div>
-                    </div>`;
-
-                const m = L.marker([p.lat, p.lon], { icon }).bindPopup(content)
-                    .bindTooltip(p.title, { direction: 'top', offset: [0, -15], className: 'hover-title' }).addTo(map);
-                m._idx = idx;
-                currentMarkers.push(m);
-                if(openId === idx) m.openPopup();
-            }
-        });
-    }
-
-    /* --- GPX & TRACKS --- */
-    window.loadGpxTrack = function(idx, shouldZoom = true) {
-        const p = photoMarkers[idx];
-        if (loadedTracks[idx]) { map.removeLayer(loadedTracks[idx].group); delete loadedTracks[idx]; renderMarkers(); return; }
-
-        const trackGroup = L.featureGroup().addTo(map);
-        const color = COLORS[p.activity?.toLowerCase().trim()] || '#6b7280';
         
-        new L.GPX(`${ASSET_BASE}/${p.year}/gpx/${p.gpx}`, {
-            async: true, marker_options: { startIconUrl: '', endIconUrl: '' },
-            polyline_options: { color: color, weight: 5, opacity: 0.9 }
-        }).on('loaded', e => {
-            if (shouldZoom) map.flyToBounds(e.target.getBounds(), { padding: [40, 40] });
-            loadedTracks[idx] = { group: trackGroup };
-            renderMarkers();
-            updateClearButton();
-        }).addTo(trackGroup);
-    };
-
-    window.showAllTracks = function() {
-        photoMarkers.forEach((p, i) => {
-            if ((activeYear === 'All' || p.year.toString() === activeYear) && p.gpx && p.gpx.length > 5) loadGpxTrack(i, false);
-        });
-    };
-
-    window.clearAllTracks = function() {
-        Object.keys(loadedTracks).forEach(idx => map.removeLayer(loadedTracks[idx].group));
-        loadedTracks = {};
-        renderMarkers();
-        updateClearButton();
-    };
-
-    function updateClearButton() {
-        const btn = document.getElementById('clear-tracks-btn');
-        const has = Object.keys(loadedTracks).length > 0;
-        btn.classList.toggle('bg-red-600', has); btn.classList.toggle('bg-gray-300', !has); btn.classList.toggle('cursor-not-allowed', !has);
+        // Pan map to location
+        map.flyTo([p.lat, p.lon], 11);
+        
+        // Automatically load track if available and not already loaded
+        const hasTrack = (p.gpx && p.gpx.length > 5);
+        if (hasTrack && !loadedTracks[idx]) {
+            loadGpxTrack(idx, true); // Assuming your original function is named loadGpxTrack
+        }
+    
+        // Open the original popup after flight animation
+        setTimeout(() => {
+            const marker = currentMarkers.find(m => m._idx === idx);
+            if(marker) marker.openPopup();
+        }, 1200);
     }
-
-    /* --- UTILS --- */
-    function setupEvents() {
-        document.querySelectorAll('[data-activity]').forEach(btn => {
-            btn.onclick = () => {
-                const act = btn.dataset.activity;
-                activeFilters[act] = !activeFilters[act];
-                btn.classList.toggle('filter-button-active', activeFilters[act]);
-                renderMarkers();
-            };
-        });
-        document.getElementById('threshold-slider').oninput = (e) => {
-            switchThreshold = e.target.value;
-            document.getElementById('threshold-display').innerText = switchThreshold;
-        };
-    }
-
-    function togglePanel(id) {
-        const p = document.getElementById(id);
-        const isVisible = p.style.display === 'flex';
-        document.querySelectorAll('.pop-out-panel').forEach(el => el.style.display = 'none');
-        if (!isVisible) p.style.display = 'flex';
-    }
-
-    init();
+    initDataFetch();
 </script>
 </body>
 </html>
