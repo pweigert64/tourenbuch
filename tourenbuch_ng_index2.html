@@ -16,8 +16,32 @@
         html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; font-family: 'Inter', sans-serif; }
         #main-layout { display: flex; height: 100vh; width: 100vw; overflow: hidden; }
         
-        /* Sidebar */
-        #sidebar { width: 240px; background: white; border-right: 1px solid #e5e7eb; display: flex; flex-direction: column; z-index: 11000; flex-shrink: 0; }
+        /* Sidebar Base Styles */
+		#sidebar { 
+		    width: 240px; 
+		    background: white; 
+		    border-right: 1px solid #e5e7eb; 
+		    display: flex; 
+		    flex-direction: column; 
+		    z-index: 20000; /* High enough to sit on top of the map */
+		    transition: transform 0.3s ease-in-out; 
+		}
+		
+		/* Mobile Specific Tweaks */
+		@media (max-width: 768px) {
+		    #sidebar {
+		        position: absolute; /* Float over the map */
+		        height: 100%;
+		        left: 0;
+		        top: 0;
+		        transform: translateX(-100%); /* Start hidden off-screen */
+		    }
+		    /* When the 'open' class is added via JS, slide it in */
+		    #sidebar.open {
+		        transform: translateX(0);
+		        box-shadow: 5px 0 15px rgba(0,0,0,0.2);
+		    }
+		}
         #sidebar-years { flex-grow: 1; overflow-y: auto; }
         
         /* Content Area */
@@ -134,10 +158,11 @@
 
     <div id="content-area">
         <header id="top-nav">
-             <div id="current-year-label" class="font-black text-indigo-600 tracking-widest uppercase italic">PORTAL</div>
+		 	 <button onclick="toggleSidebar()" class="md:hidden mr-2 text-2xl" title="Menu">☰</button>
+             <div id="current-year-label" class="font-black text-indigo-600 tracking-widest uppercase italic">Alpine Retrospektive</div>
              <div class="flex gap-2 bg-gray-100 p-1 rounded-xl">
                 <button onclick="switchView('portal')" id="nav-portal" class="px-4 py-2 rounded-lg bg-white shadow-sm">🗓️</button>
-                <button onclick="switchView('map')" id="nav-map" class="px-4 py-2 rounded-lg opacity-50">🌍</button>
+                <button onclick="switchView('map')" id="nav-map" class="px-4 py-2 rounded-lg opacity-50">🗺️</button>
              </div>
         </header>
 
@@ -225,6 +250,21 @@
     let activeYear = 'All', isInitialLoad = true, switchThreshold = 16; 
     let MAPTILER_KEY, SHEETS_CSV_URL;
 
+	/* -------------------------------------------------------------------------
+	 * TOGGLE Sidebar (Hamburger Menu)
+	 * -----------------------------------------------------------------------*/
+	function toggleSidebar() {
+		const sidebar = document.getElementById('sidebar');
+		sidebar.classList.toggle('open');
+		
+		// Optional: Close sidebar when a year is clicked on mobile
+		if (window.innerWidth <= 768) {
+			const btns = document.querySelectorAll('.year-btn');
+			btns.forEach(btn => {
+				btn.addEventListener('click', () => sidebar.classList.remove('open'));
+			});
+		}
+	}	
     /* -------------------------------------------------------------------------
 	 * TOGGLE PANEL opens gear/map button.
 	 * -----------------------------------------------------------------------*/
@@ -389,6 +429,9 @@
 	    // 4. Refresh Data
 	    renderPortal(); 
 	    renderMarkers();
+		
+		// toggle Hamburger when window screen is small
+		if (window.innerWidth <= 768) toggleSidebar();
 	};
 	
     /**
@@ -1066,6 +1109,7 @@
 	
 </body>
 </html>
+
 
 
 
