@@ -505,7 +505,7 @@
 	    if (!container) return;
 	    
 	    container.innerHTML = ''; 
-	    const targets = getFilteredTours();
+	    const targets = getFilteredTours('portal');
 	
 	    let i = 0;
 	    function processBatch() {
@@ -741,6 +741,7 @@
 	 * extracted from rendering. alows deviding loading into ad hoc and batch. 
 	 --------------------------------------------------------------------------*/
 	function getFilteredTours(targetView = 'map') {
+	    // 1. Standard Filter (Year & Activity)
 	    const filtered = photoMarkers.filter(p => {
 	        const rawAct = p.activity?.toLowerCase().trim();
 	        const activityKey = ICONS_MAP[rawAct] ? rawAct : 'unknown';
@@ -749,21 +750,26 @@
 	        return yearMatch && filterMatch;
 	    });
 	
+	    // 2. Map Logic: Show everything that has coordinates
 	    if (targetView === 'map') {
-	        // Map only wants things with coordinates
 	        return filtered.filter(p => p.lat && p.lon);
 	    }
 	
-	    // Portal logic: Group by Album
+	    // 3. Portal Logic: Handle Collections
 	    const seenAlbums = new Set();
-	    return filtered.filter(p => {
-	        if (!p.album || p.album === "" || p.album === "#") return true; // Keep rows without albums
-	        if (seenAlbums.has(p.album)) return false; // Skip if we've seen this album
+	    
+	    // We sort so that rows WITHOUT coordinates (Ghosts) come first
+	    // This ensures the Ghost is chosen as the representative
+	    return filtered.sort((a, b) => (a.lat ? 1 : -1)).filter(p => {
+	        if (!p.album || p.album === "" || p.album === "#") return true; 
+	        
+	        if (seenAlbums.has(p.album)) return false; // Already showing a card for this album
+	        
 	        seenAlbums.add(p.album);
 	        return true;
 	    });
 	}
-
+	
 	/**
 	 * Creates a single Leaflet marker with a custom emoji icon and popup.
 	 * @param {Object} p - The tour data object from photoMarkers.
@@ -1059,7 +1065,7 @@
 	    let openId = null;
 	
 	    // 1. Get the list of what SHOULD be visible
-	    const targets = getFilteredTours();
+	    const targets = getFilteredTours('map');
 	    
 	    // Create a Set of indices for lightning-fast lookups
 	    const targetIndices = new Set(targets.map(p => photoMarkers.indexOf(p)));
@@ -1137,6 +1143,7 @@
 	
 </body>
 </html>
+
 
 
 
