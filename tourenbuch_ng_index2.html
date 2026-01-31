@@ -18,7 +18,7 @@
         
         /* Sidebar Base Styles */
 		#sidebar { 
-		    width: 240px; 
+		    width: 150px; 
 		    background: white; 
 		    border-right: 1px solid #e5e7eb; 
 		    display: flex; 
@@ -151,11 +151,15 @@
 </head>
 <body>
 <div id="main-layout">
-    <aside id="sidebar">
-        <div class="p-5 font-black text-xl border-b tracking-tighter">🏔️ TOUREN</div>
-        <div id="sidebar-years"></div>
-    </aside>
-
+	<aside id="sidebar">
+	    <div class="flex items-center justify-between p-5 border-b md:block">
+	        <span class="font-black text-xl tracking-tighter">🏔️ TOUREN</span>
+	        <button onclick="toggleSidebar()" class="md:hidden text-2xl">✕</button>
+	    </div>
+	    <div id="sidebar-years"></div>
+	</aside>
+	<div id="sidebar-overlay" onclick="toggleSidebar()" class="hidden fixed inset-0 bg-black/30 z-[14000]"></div>
+	
     <div id="content-area">
         <header id="top-nav">
 		 	 <button onclick="toggleSidebar()" class="md:hidden mr-2 text-2xl" title="Menu">☰</button>
@@ -254,18 +258,20 @@
 	 * TOGGLE Sidebar (Hamburger Menu)
 	 * -----------------------------------------------------------------------*/
 	function toggleSidebar() {
-		const sidebar = document.getElementById('sidebar');
-		sidebar.classList.toggle('open');
-		
-		// Optional: Close sidebar when a year is clicked on mobile
-		if (window.innerWidth <= 768) {
-			const btns = document.querySelectorAll('.year-btn');
-			btns.forEach(btn => {
-				btn.addEventListener('click', () => sidebar.classList.remove('open'));
-			});
-		}
-	}	
-    /* -------------------------------------------------------------------------
+	    const sidebar = document.getElementById('sidebar');
+	    const overlay = document.getElementById('sidebar-overlay');
+	    
+	    sidebar.classList.toggle('open');
+	    
+	    // Show or hide the dark overlay
+	    if (sidebar.classList.contains('open')) {
+	        overlay.classList.remove('hidden');
+	    } else {
+	        overlay.classList.add('hidden');
+	    }
+	}
+
+	/* -------------------------------------------------------------------------
 	 * TOGGLE PANEL opens gear/map button.
 	 * -----------------------------------------------------------------------*/
 	function togglePanel(panelId) {
@@ -1109,6 +1115,7 @@
 	
 </body>
 </html>
+
 
 
 
