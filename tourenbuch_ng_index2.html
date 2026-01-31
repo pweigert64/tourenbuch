@@ -153,7 +153,7 @@
 <div id="main-layout">
 	<aside id="sidebar">
 	    <div class="flex items-center justify-between p-5 border-b md:block">
-	        <span class="font-black text-xl tracking-tighter">🏔️ v0.18</span>
+	        <span class="font-black text-xl tracking-tighter">🏔️ v0.19</span>
 	        <button onclick="toggleSidebar()" class="md:hidden text-2xl">✕</button>
 	    </div>
 	    <div id="sidebar-years"></div>
@@ -459,14 +459,15 @@
 	    const displayIcon = ICONS_MAP[rawAct] || '❓';
 	    
 	    // Status helpers
-	    const hasAlbum = p.album && p.album.startsWith('http');
-	    const hasTrack = p.gpx && p.gpx.length > 5;
+		const hasAlbum = p.album && p.album.startsWith('http');
+		// A row is "Map-ready" if it has coordinates OR if it's a Ghost Row with siblings
+		const hasLocation = (p.lat && p.lon);
+		const isCollection = (!p.lat || !p.lon) && hasAlbum; 
+		
+		// We show the "MAP" button as active if it's a collection leader OR has its own coordinates
+		const canShowOnMap = hasLocation || isCollection;
 	
-	    // Tags & Emoji Line
-	    let metaHtml = `<span class="mr-1.5">${displayIcon}</span>`;
-	    if (p.tags) metaHtml += `<span class="text-gray-400 font-normal">${p.tags}</span>`;
-	
-	    return `
+		return `
 	        <div class="bg-white rounded-2xl shadow-sm overflow-hidden flex flex-col h-full hover:shadow-md transition-all border border-gray-100">
 	            <div class="relative aspect-video bg-gray-200 cursor-pointer" onclick="jumpToMap(${idx})">
 	                <img src="${ASSET_BASE}/${p.year}/img/${p.img}" class="w-full h-full object-cover" loading="lazy">
@@ -482,8 +483,9 @@
 	                        `<div class="flex-1 py-2 bg-gray-50 text-gray-400 rounded-lg text-[10px] font-bold text-center">🚫 NO ALBUM</div>`
 	                    }
 	                    
-	                    <button onclick="jumpToMap(${idx})" class="flex-1 py-2 ${hasTrack ? 'bg-green-50 text-green-600' : 'bg-gray-100 text-gray-600'} rounded-lg text-[10px] font-bold">
-	                        ${hasTrack ? '👣 TRACK' : '📍 MAP'}
+	                    <button onclick="${canShowOnMap ? `jumpToMap(${idx})` : ''}" 
+	                            class="flex-1 py-2 ${canShowOnMap ? 'bg-green-50 text-green-600' : 'bg-gray-100 text-gray-400 cursor-not-allowed'} rounded-lg text-[10px] font-bold">
+	                        ${canShowOnMap ? '🗺️ MAP' : '🚫 NO MAP'}
 	                    </button>
 	                </div>
 	            </div>
@@ -763,7 +765,7 @@
 	function getFilteredTours(targetView = 'map') {
 	    // Standard Filter first
 	    let filtered = photoMarkers.filter(p => {
-	        const tourYear = p.year.toString();
+	        const yearMatch = (activeYear === 'All' || p.year.toString() === activeYear);
 	        const rawAct = p.activity?.toLowerCase().trim();
 	        const activityKey = ICONS_MAP[rawAct] ? rawAct : 'unknown';
 	        const yearMatch = (activeYear === 'All' || tourYear === activeYear);
@@ -1163,6 +1165,7 @@
 	
 </body>
 </html>
+
 
 
 
