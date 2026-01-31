@@ -455,7 +455,17 @@
      * create the HTML for a Portal Grid Cards
      */
 	function createPortalCard(p, idx) {
-	    const rawAct = (p.activity) ? p.activity.toLowerCase().trim() : '';
+		let displayTitle = p.title;
+	    
+	    // Check if this is a representative for an album
+	    if (p.album && p.album !== "#") {
+	        const siblings = photoMarkers.filter(s => s.album === p.album && s.title !== p.title);
+	        if (siblings.length > 0) {
+	            // Append a hint that there are more stops
+	            displayTitle += ` (+${siblings.length} more stops)`;
+	        }
+	    }
+		const rawAct = (p.activity) ? p.activity.toLowerCase().trim() : '';
 	    const displayIcon = ICONS_MAP[rawAct] || '❓';
 	    
 	    // Start with the Emoji
@@ -524,32 +534,39 @@
 	    const p = photoMarkers[idx];
 	    const tourYear = p.year.toString();
 	
-	    // 1. SYNC YEAR: Falls nötig, Filter umschalten
+	    // 1. SYNC YEAR (Always do this first)
 	    if (activeYear !== 'All' && activeYear !== tourYear) {
 	        window.updateActiveYear(tourYear);
 	    }
 	
 	    // 2. VIEW WECHSELN
 	    switchView('map');
-	    
-	    // 3. WAIT & FLY: Kurzer Puffer für das DOM-Update, dann Flug
+	
+	    // 3. WAIT & FLY (Buffer for DOM/Map update)
 	    setTimeout(() => {
+	        // --- CASE A: The Ghost Row (Collection) ---
+	        if ((!p.lat || !p.lon) && p.album && p.album.startsWith('http')) {
+	            const albumMatches = photoMarkers.filter(m => m.album === p.album && m.lat && m.lon);
+	            if (albumMatches.length > 0) {
+	                const bounds = L.latLngBounds(albumMatches.map(m => [m.lat, m.lon]));
+	                map.flyToBounds(bounds, { padding: [50, 50], duration: 1.5 });
+	                return; // Stop here for collections
+	            }
+	        }
+	
+	        // --- CASE B: Your Original Single-Point Logic ---
 	        map.flyTo([p.lat, p.lon], 11, { duration: 1.2 });
 	
-	        // 4. PRÄZISE POPUP-LOGIK: Warten bis der Flug fertig ist
 	        map.once('moveend', () => {
 	            let attempts = 0;
 	            const tryOpen = () => {
 	                let found = false;
 	                map.eachLayer(layer => {
-	                    // Wir suchen exakt den Marker mit unserer gespeicherten ID
 	                    if (layer instanceof L.Marker && layer._idx === idx) {
 	                        layer.openPopup();
 	                        found = true;
 	                    }
 	                });
-	
-	                // Falls renderMarkers() noch nicht fertig war, versuchen wir es kurz erneut
 	                if (!found && attempts < 10) {
 	                    attempts++;
 	                    setTimeout(tryOpen, 100);
@@ -558,7 +575,6 @@
 	            tryOpen();
 	        });
 	
-	        // 5. TRACK LADEN
 	        if (p.gpx && p.gpx.length > 5 && !loadedTracks[idx]) {
 	            loadGpxTrack(idx, true);
 	        }
@@ -724,13 +740,27 @@
 	 * GET FILTERED TOURS filter the photoMarkers
 	 * extracted from rendering. alows deviding loading into ad hoc and batch. 
 	 --------------------------------------------------------------------------*/
-	function getFilteredTours() {
-	    return photoMarkers.filter(p => {
+	function getFilteredTours(targetView = 'map') {
+	    const filtered = photoMarkers.filter(p => {
 	        const rawAct = p.activity?.toLowerCase().trim();
 	        const activityKey = ICONS_MAP[rawAct] ? rawAct : 'unknown';
 	        const yearMatch = (activeYear === 'All' || p.year.toString() === activeYear);
 	        const filterMatch = (activityKey === 'unknown') || activeFilters[activityKey];
-	        return yearMatch && filterMatch && p.lat && p.lon;
+	        return yearMatch && filterMatch;
+	    });
+	
+	    if (targetView === 'map') {
+	        // Map only wants things with coordinates
+	        return filtered.filter(p => p.lat && p.lon);
+	    }
+	
+	    // Portal logic: Group by Album
+	    const seenAlbums = new Set();
+	    return filtered.filter(p => {
+	        if (!p.album || p.album === "" || p.album === "#") return true; // Keep rows without albums
+	        if (seenAlbums.has(p.album)) return false; // Skip if we've seen this album
+	        seenAlbums.add(p.album);
+	        return true;
 	    });
 	}
 
@@ -1107,6 +1137,7 @@
 	
 </body>
 </html>
+
 
 
 
