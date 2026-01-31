@@ -153,7 +153,7 @@
 <div id="main-layout">
 	<aside id="sidebar">
 	    <div class="flex items-center justify-between p-5 border-b md:block">
-	        <span class="font-black text-xl tracking-tighter">🏔️ v0.19</span>
+	        <span class="font-black text-xl tracking-tighter">🏔️ v0.20</span>
 	        <button onclick="toggleSidebar()" class="md:hidden text-2xl">✕</button>
 	    </div>
 	    <div id="sidebar-years"></div>
@@ -458,19 +458,23 @@
 	    const rawAct = (p.activity) ? p.activity.toLowerCase().trim() : '';
 	    const displayIcon = ICONS_MAP[rawAct] || '❓';
 	    
+	    // --- RESTORED metaHtml DEFINITION ---
+	    let metaHtml = `<span class="mr-1.5">${displayIcon}</span>`;
+	    if (p.tags && p.tags.trim().length > 0) {
+	        metaHtml += `<span class="text-gray-400 font-normal">${p.tags}</span>`;
+	    }
+	    
 	    // Status helpers
-		const hasAlbum = p.album && p.album.startsWith('http');
-		// A row is "Map-ready" if it has coordinates OR if it's a Ghost Row with siblings
-		const hasLocation = (p.lat && p.lon);
-		const isCollection = (!p.lat || !p.lon) && hasAlbum; 
-		
-		// We show the "MAP" button as active if it's a collection leader OR has its own coordinates
-		const canShowOnMap = hasLocation || isCollection;
+	    const hasAlbum = p.album && p.album.startsWith('http');
+	    const hasLocation = (p.lat && p.lon);
+	    const isCollection = (!p.lat || !p.lon) && hasAlbum; 
+	    
+	    const canShowOnMap = hasLocation || isCollection;
 	
-		return `
+	    return `
 	        <div class="bg-white rounded-2xl shadow-sm overflow-hidden flex flex-col h-full hover:shadow-md transition-all border border-gray-100">
 	            <div class="relative aspect-video bg-gray-200 cursor-pointer" onclick="jumpToMap(${idx})">
-	                <img src="${ASSET_BASE}/${p.year}/img/${p.img}" class="w-full h-full object-cover" loading="lazy">
+	                <img src="${ASSET_BASE}/${p.year}/img/${p.img}" class="w-full h-full object-cover" loading="lazy" onerror="this.style.display='none'">
 	            </div>
 	            
 	            <div class="p-3 flex flex-col flex-grow">
@@ -529,76 +533,61 @@
 	    const p = photoMarkers[idx];
 	    const tourYear = p.year.toString();
 	
-	    // 1. SYNC YEAR (Always do this first)
+	    // 1. SYNC YEAR
 	    if (activeYear !== 'All' && activeYear !== tourYear) {
 	        window.updateActiveYear(tourYear);
 	    }
-
-		// Container handling (multi row trip with header)
-		if ((!p.lat || !p.lon) && p.album && p.album.startsWith('http')) {
-		    // Find all sibling rows in this album
-		    const albumSiblings = photoMarkers.filter(m => m.album === p.album);
-		    const markersWithCoords = albumSiblings.filter(m => m.lat && m.lon);
-		
-		    if (markersWithCoords.length > 0) {
-		        switchView('map');
-		        
-		        setTimeout(() => {
-		            // Zoom to fit all markers
-		            const bounds = L.latLngBounds(markersWithCoords.map(m => [m.lat, m.lon]));
-		            map.flyToBounds(bounds, { padding: [50, 50], duration: 1.5 });
-		
-		            // 2. LOAD ALL TRACKS (Ghost + Siblings)
-		            albumSiblings.forEach(s => {
-		                const sIdx = photoMarkers.indexOf(s);
-		                if (s.gpx && s.gpx.length > 5 && !loadedTracks[sIdx]) {
-		                    // Load the track but don't "flyTo" it (second param false)
-		                    loadGpxTrack(sIdx, false);
-		                }
-		            });
-		        }, 400);
-		        return;
-		    }
-		}
-		
-	    // 2. VIEW WECHSELN
+	
+	    // 2. VIEW SELECTION (Switch to map first)
 	    switchView('map');
 	
-	    // 3. WAIT & FLY (Buffer for DOM/Map update)
+	    // 3. LOGIC BRANCHING
 	    setTimeout(() => {
-	        // --- CASE A: The Ghost Row (Collection) ---
+	        // --- CASE A: COLLECTION HEADER (Missing Lat/Lon + Album Link) ---
 	        if ((!p.lat || !p.lon) && p.album && p.album.startsWith('http')) {
-	            const albumMatches = photoMarkers.filter(m => m.album === p.album && m.lat && m.lon);
-	            if (albumMatches.length > 0) {
-	                const bounds = L.latLngBounds(albumMatches.map(m => [m.lat, m.lon]));
+	            const albumSiblings = photoMarkers.filter(m => m.album === p.album);
+	            const markersWithCoords = albumSiblings.filter(m => m.lat && m.lon);
+	
+	            if (markersWithCoords.length > 0) {
+	                const bounds = L.latLngBounds(markersWithCoords.map(m => [m.lat, m.lon]));
 	                map.flyToBounds(bounds, { padding: [50, 50], duration: 1.5 });
-	                return; // Stop here for collections
+	
+	                // Load tracks for the whole group
+	                albumSiblings.forEach(s => {
+	                    const sIdx = photoMarkers.indexOf(s);
+	                    if (s.gpx && s.gpx.length > 5 && !loadedTracks[sIdx]) {
+	                        loadGpxTrack(sIdx, false); // false = don't fly to individual track
+	                    }
+	                });
+	                return; // End execution for collections
 	            }
 	        }
 	
-	        // --- CASE B: Your Original Single-Point Logic ---
-	        map.flyTo([p.lat, p.lon], 11, { duration: 1.2 });
+	        // --- CASE B: SINGLE POINT (Standard Marker) ---
+	        if (p.lat && p.lon) {
+	            map.flyTo([p.lat, p.lon], 11, { duration: 1.2 });
 	
-	        map.once('moveend', () => {
-	            let attempts = 0;
-	            const tryOpen = () => {
-	                let found = false;
-	                map.eachLayer(layer => {
-	                    if (layer instanceof L.Marker && layer._idx === idx) {
-	                        layer.openPopup();
-	                        found = true;
+	            map.once('moveend', () => {
+	                let attempts = 0;
+	                const tryOpen = () => {
+	                    let found = false;
+	                    map.eachLayer(layer => {
+	                        if (layer instanceof L.Marker && layer._idx === idx) {
+	                            layer.openPopup();
+	                            found = true;
+	                        }
+	                    });
+	                    if (!found && attempts < 10) {
+	                        attempts++;
+	                        setTimeout(tryOpen, 100);
 	                    }
-	                });
-	                if (!found && attempts < 10) {
-	                    attempts++;
-	                    setTimeout(tryOpen, 100);
-	                }
-	            };
-	            tryOpen();
-	        });
+	                };
+	                tryOpen();
+	            });
 	
-	        if (p.gpx && p.gpx.length > 5 && !loadedTracks[idx]) {
-	            loadGpxTrack(idx, true);
+	            if (p.gpx && p.gpx.length > 5 && !loadedTracks[idx]) {
+	                loadGpxTrack(idx, true); // true = zoom to track bounds
+	            }
 	        }
 	    }, 400); 
 	}
@@ -713,8 +702,9 @@
 	window.loadGpxTrack = function(idx, shouldZoom = true) {
 		const p = photoMarkers[idx];
 		const url = `${ASSET_BASE}/${p.year}/gpx/${p.gpx}`;
-		const color = COLORS[ICONS_MAP.hasOwnProperty(p.activity?.toLowerCase().trim()) ? p.activity.toLowerCase().trim() : 'unknown'];
-
+		const rawAct = p.activity?.toLowerCase().trim();
+		// Use COLORS keys directly (ski, hike, etc.)
+		const color = COLORS[rawAct] || COLORS['unknown'];
 		map.closePopup();
 
 		if (loadedTracks[idx]) {
@@ -763,30 +753,33 @@
 	 * extracted from rendering. alows deviding loading into ad hoc and batch. 
 	 --------------------------------------------------------------------------*/
 	function getFilteredTours(targetView = 'map') {
-	    // Standard Filter first
+	    // Standard Filter logic
 	    let filtered = photoMarkers.filter(p => {
-	        const yearMatch = (activeYear === 'All' || p.year.toString() === activeYear);
+	        const pYear = p.year.toString();
+	        const yearMatch = (activeYear === 'All' || pYear === activeYear);
+	        
 	        const rawAct = p.activity?.toLowerCase().trim();
 	        const activityKey = ICONS_MAP[rawAct] ? rawAct : 'unknown';
-	        const yearMatch = (activeYear === 'All' || tourYear === activeYear);
-	        const filterMatch = (activityKey === 'unknown') || activeFilters[activityKey];
+	        const filterMatch = activeFilters[activityKey];
+	        
 	        return yearMatch && filterMatch;
 	    });
 	
 	    if (targetView === 'map') {
+	        // Only return rows that have coordinates for the map markers
 	        return filtered.filter(p => p.lat && p.lon);
 	    }
 	
-	    // PORTAL LOGIC: Hide duplicates
+	    // PORTAL LOGIC: Hide duplicates to show only the "Ghost" (Collection Header)
 	    const seenAlbums = new Set();
 	    return filtered.filter(p => {
-	        // If it's a normal entry without an album, show it
+	        // If no album is provided, always show the card
 	        if (!p.album || p.album === "" || p.album === "#") return true;
 	        
-	        // If we see an album link we've already processed, hide this row
+	        // If we've already seen this album URL, hide this row
 	        if (seenAlbums.has(p.album)) return false;
 	        
-	        // Mark this album as "seen" and show the card (the Ghost)
+	        // Register album and show this first row (the Ghost/Header)
 	        seenAlbums.add(p.album);
 	        return true;
 	    });
@@ -1165,6 +1158,7 @@
 	
 </body>
 </html>
+
 
 
 
