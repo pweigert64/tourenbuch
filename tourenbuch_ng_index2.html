@@ -153,7 +153,7 @@
 <div id="main-layout">
 	<aside id="sidebar">
 	    <div class="flex items-center justify-between p-5 border-b md:block">
-	        <span class="font-black text-xl tracking-tighter">🏔️ v0.12</span>
+	        <span class="font-black text-xl tracking-tighter">🏔️ v0.13</span>
 	        <button onclick="toggleSidebar()" class="md:hidden text-2xl">✕</button>
 	    </div>
 	    <div id="sidebar-years"></div>
@@ -455,21 +455,41 @@
      * create the HTML for a Portal Grid Cards
      */
 	function createPortalCard(p, idx) {
-	    const rawAct = p.activity?.toLowerCase().trim();
+	    const rawAct = (p.activity) ? p.activity.toLowerCase().trim() : '';
 	    const displayIcon = ICONS_MAP[rawAct] || '❓';
 	    
+	    // 1. Always start the "Tags Line" with the Emoji and Activity
+	    let metaHtml = `<span class="mr-2">${displayIcon} ${p.activity}</span>`;
+	
+	    // 2. Safely add tags only if they exist, without breaking the line
+	    if (p.tags && p.tags.trim().length > 0) {
+	        const tagsList = p.tags.split(' ').map(tag => 
+	            `<span class="text-indigo-500 mr-1">${tag}</span>`
+	        ).join('');
+	        metaHtml += tagsList;
+	    }
+	
 	    return `
-	        <div class="portal-card bg-white rounded-xl shadow-sm overflow-hidden" onclick="jumpToMap(${idx})">
-	            <div class="aspect-video bg-gray-100 relative">
-	                <img src="${ASSET_BASE}/${p.year}/img/${p.img}" class="w-full h-full object-cover" loading="lazy">
-	                <div class="absolute top-2 right-2 bg-white/80 px-2 py-1 rounded text-sm">${displayIcon}</div>
+	        <div class="bg-white rounded-2xl shadow-sm overflow-hidden cursor-pointer hover:shadow-md transition-all" onclick="jumpToMap(${idx})">
+	            <div class="relative aspect-video bg-gray-200">
+	                <img src="${ASSET_BASE}/${p.year}/img/${p.img}" 
+	                     class="w-full h-full object-cover" 
+	                     loading="lazy"
+	                     onerror="this.src='https://via.placeholder.com/400x225?text=No+Image'">
 	            </div>
-	            <div class="p-3">
-	                <div class="text-xs text-gray-400 font-bold">${p.year} • ${p.activity}</div>
-	                <div class="font-bold text-gray-800 truncate">${p.title}</div>
+	            
+	            <div class="p-4">
+	                <div class="flex justify-between items-center mb-2">
+	                    <span class="text-[10px] font-medium text-gray-400">${p.year}</span>
+	                </div>
+	                
+	                <h3 class="font-bold text-gray-900 leading-tight mb-2">${p.title}</h3>
+	                
+	                <div class="flex flex-wrap items-center text-[10px] font-bold text-gray-500 tracking-tight">
+	                    ${metaHtml}
+	                </div>
 	            </div>
-	        </div>
-	    `;
+	        </div>`;
 	}
 	
 	/**
@@ -479,47 +499,25 @@
 	    const container = document.getElementById('portal-grid');
 	    if (!container) return;
 	    
-	    container.innerHTML = ''; // Clear only the cards, not the wrapper
-	    const targets = getFilteredTours(); // Use your modular filter
+	    container.innerHTML = ''; 
+	    const targets = getFilteredTours();
 	
 	    let i = 0;
-	    const batchSize = 12; // 12 cards is usually 4 rows on desktop, 12 on mobile
-	
 	    function processBatch() {
-	        const end = Math.min(i + batchSize, targets.length);
+	        const end = Math.min(i + 12, targets.length);
 	        let htmlChunk = '';
 	
 	        for (; i < end; i++) {
-	            const p = targets[i];
-	            const idx = photoMarkers.indexOf(p);
-	            
-	            // This is the EXACT layout you had before, just moved here
-	            htmlChunk += `
-	                <div class="bg-white rounded-2xl shadow-sm overflow-hidden cursor-pointer" onclick="jumpToMap(${idx})">
-	                    <div class="relative aspect-video bg-gray-200">
-	                        <img src="${ASSET_BASE}/${p.year}/img/${p.img}" 
-	                             class="w-full h-full object-cover" 
-	                             loading="lazy"
-	                             onerror="this.src='https://via.placeholder.com/400x225?text=No+Image'">
-	                    </div>
-	                    <div class="p-4">
-	                        <div class="flex justify-between items-start mb-1">
-	                            <span class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">${p.activity}</span>
-	                            <span class="text-[10px] font-medium text-gray-400">${p.year}</span>
-	                        </div>
-	                        <h3 class="font-bold text-gray-900 leading-tight">${p.title}</h3>
-	                    </div>
-	                </div>`;
+	            // We call the detailed function above
+	            htmlChunk += createPortalCard(targets[i], photoMarkers.indexOf(targets[i]));
 	        }
 	
-	        // 'beforeend' keeps the existing cards and just appends the new ones
 	        container.insertAdjacentHTML('beforeend', htmlChunk);
 	
 	        if (i < targets.length) {
 	            requestAnimationFrame(processBatch);
 	        }
 	    }
-	
 	    processBatch();
 	}
 	
@@ -1114,6 +1112,7 @@
 	
 </body>
 </html>
+
 
 
 
