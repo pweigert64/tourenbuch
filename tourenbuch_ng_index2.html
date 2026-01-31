@@ -153,7 +153,7 @@
 <div id="main-layout">
 	<aside id="sidebar">
 	    <div class="flex items-center justify-between p-5 border-b md:block">
-	        <span class="font-black text-xl tracking-tighter">🏔️ v0.17</span>
+	        <span class="font-black text-xl tracking-tighter">🏔️ v0.18</span>
 	        <button onclick="toggleSidebar()" class="md:hidden text-2xl">✕</button>
 	    </div>
 	    <div id="sidebar-years"></div>
@@ -458,39 +458,33 @@
 	    const rawAct = (p.activity) ? p.activity.toLowerCase().trim() : '';
 	    const displayIcon = ICONS_MAP[rawAct] || '❓';
 	    
+	    // Status helpers
+	    const hasAlbum = p.album && p.album.startsWith('http');
+	    const hasTrack = p.gpx && p.gpx.length > 5;
+	
+	    // Tags & Emoji Line
 	    let metaHtml = `<span class="mr-1.5">${displayIcon}</span>`;
-	    if (p.tags && p.tags.trim().length > 0) {
-	        metaHtml += `<span class="text-gray-400 font-normal">${p.tags}</span>`;
-	    }
+	    if (p.tags) metaHtml += `<span class="text-gray-400 font-normal">${p.tags}</span>`;
 	
 	    return `
-	        <div class="bg-white rounded-2xl shadow-sm overflow-hidden flex flex-col h-full hover:shadow-md transition-all">
+	        <div class="bg-white rounded-2xl shadow-sm overflow-hidden flex flex-col h-full hover:shadow-md transition-all border border-gray-100">
 	            <div class="relative aspect-video bg-gray-200 cursor-pointer" onclick="jumpToMap(${idx})">
-	                <img src="${ASSET_BASE}/${p.year}/img/${p.img}" 
-	                     class="w-full h-full object-cover" 
-	                     loading="lazy">
+	                <img src="${ASSET_BASE}/${p.year}/img/${p.img}" class="w-full h-full object-cover" loading="lazy">
 	            </div>
 	            
 	            <div class="p-3 flex flex-col flex-grow">
-	                <h3 class="font-bold text-gray-900 leading-tight mb-1 text-sm line-clamp-2">
-	                    ${p.title}
-	                </h3>
-	                
-	                <div class="text-[11px] font-bold text-gray-500 truncate mb-3" title="${p.tags || ''}">
-	                    ${metaHtml}
-	                </div>
+	                <h3 class="font-bold text-gray-900 leading-tight mb-1 text-sm line-clamp-2">${p.title}</h3>
+	                <div class="text-[11px] font-bold text-gray-500 truncate mb-4">${metaHtml}</div>
 	
 	                <div class="mt-auto flex gap-2">
-	                    <button onclick="jumpToMap(${idx})" 
-	                            class="flex-1 px-2 py-1.5 bg-gray-100 hover:bg-gray-200 rounded text-[10px] font-bold text-gray-600 transition-colors uppercase tracking-wider">
-	                        Map
+	                    ${hasAlbum ? 
+	                        `<a href="${p.album}" target="_blank" class="flex-1 py-2 bg-blue-50 text-blue-600 rounded-lg text-[10px] font-bold text-center">📖 ALBUM</a>` : 
+	                        `<div class="flex-1 py-2 bg-gray-50 text-gray-400 rounded-lg text-[10px] font-bold text-center">🚫 NO ALBUM</div>`
+	                    }
+	                    
+	                    <button onclick="jumpToMap(${idx})" class="flex-1 py-2 ${hasTrack ? 'bg-green-50 text-green-600' : 'bg-gray-100 text-gray-600'} rounded-lg text-[10px] font-bold">
+	                        ${hasTrack ? '👣 TRACK' : '📍 MAP'}
 	                    </button>
-	                    ${p.album && p.album !== "#" ? `
-	                        <a href="${p.album}" target="_blank" 
-	                           class="flex-1 px-2 py-1.5 bg-blue-50 hover:bg-blue-100 rounded text-[10px] font-bold text-blue-600 text-center transition-colors uppercase tracking-wider">
-	                            Album
-	                        </a>
-	                    ` : ''}
 	                </div>
 	            </div>
 	        </div>`;
@@ -537,7 +531,34 @@
 	    if (activeYear !== 'All' && activeYear !== tourYear) {
 	        window.updateActiveYear(tourYear);
 	    }
-	
+
+		// Container handling (multi row trip with header)
+		if ((!p.lat || !p.lon) && p.album && p.album.startsWith('http')) {
+		    // Find all sibling rows in this album
+		    const albumSiblings = photoMarkers.filter(m => m.album === p.album);
+		    const markersWithCoords = albumSiblings.filter(m => m.lat && m.lon);
+		
+		    if (markersWithCoords.length > 0) {
+		        switchView('map');
+		        
+		        setTimeout(() => {
+		            // Zoom to fit all markers
+		            const bounds = L.latLngBounds(markersWithCoords.map(m => [m.lat, m.lon]));
+		            map.flyToBounds(bounds, { padding: [50, 50], duration: 1.5 });
+		
+		            // 2. LOAD ALL TRACKS (Ghost + Siblings)
+		            albumSiblings.forEach(s => {
+		                const sIdx = photoMarkers.indexOf(s);
+		                if (s.gpx && s.gpx.length > 5 && !loadedTracks[sIdx]) {
+		                    // Load the track but don't "flyTo" it (second param false)
+		                    loadGpxTrack(sIdx, false);
+		                }
+		            });
+		        }, 400);
+		        return;
+		    }
+		}
+		
 	    // 2. VIEW WECHSELN
 	    switchView('map');
 	
@@ -740,34 +761,33 @@
 	 * extracted from rendering. alows deviding loading into ad hoc and batch. 
 	 --------------------------------------------------------------------------*/
 	function getFilteredTours(targetView = 'map') {
-	    // 1. Filter by Year/Activity (Your existing code)
+	    // Standard Filter first
 	    let filtered = photoMarkers.filter(p => {
+	        const tourYear = p.year.toString();
 	        const rawAct = p.activity?.toLowerCase().trim();
 	        const activityKey = ICONS_MAP[rawAct] ? rawAct : 'unknown';
-	        const yearMatch = (activeYear === 'All' || p.year.toString() === activeYear);
+	        const yearMatch = (activeYear === 'All' || tourYear === activeYear);
 	        const filterMatch = (activityKey === 'unknown') || activeFilters[activityKey];
 	        return yearMatch && filterMatch;
 	    });
 	
-	    // 2. MAP VIEW: No changes here
 	    if (targetView === 'map') {
 	        return filtered.filter(p => p.lat && p.lon);
 	    }
 	
-	    // 3. PORTAL VIEW: Simple Deduplication (No Sorting)
-	    if (targetView === 'portal') {
-	        const seenAlbums = new Set();
-	        return filtered.filter(p => {
-	            if (!p.album || p.album === "" || p.album === "#") return true;
-	            
-	            if (seenAlbums.has(p.album)) return false; // Skip markers if Ghost was already seen
-	            
-	            seenAlbums.add(p.album);
-	            return true;
-	        });
-	    }
-	
-	    return filtered;
+	    // PORTAL LOGIC: Hide duplicates
+	    const seenAlbums = new Set();
+	    return filtered.filter(p => {
+	        // If it's a normal entry without an album, show it
+	        if (!p.album || p.album === "" || p.album === "#") return true;
+	        
+	        // If we see an album link we've already processed, hide this row
+	        if (seenAlbums.has(p.album)) return false;
+	        
+	        // Mark this album as "seen" and show the card (the Ghost)
+	        seenAlbums.add(p.album);
+	        return true;
+	    });
 	}
 	
 	/**
@@ -1143,6 +1163,7 @@
 	
 </body>
 </html>
+
 
 
 
