@@ -153,7 +153,7 @@
 <div id="main-layout">
 	<aside id="sidebar">
 	    <div class="flex items-center justify-between p-5 border-b md:block">
-	        <span class="font-black text-xl tracking-tighter">🏔️ v0.13</span>
+	        <span class="font-black text-xl tracking-tighter">🏔️ v0.14</span>
 	        <button onclick="toggleSidebar()" class="md:hidden text-2xl">✕</button>
 	    </div>
 	    <div id="sidebar-years"></div>
@@ -458,34 +458,29 @@
 	    const rawAct = (p.activity) ? p.activity.toLowerCase().trim() : '';
 	    const displayIcon = ICONS_MAP[rawAct] || '❓';
 	    
-	    // 1. Always start the "Tags Line" with the Emoji and Activity
-	    let metaHtml = `<span class="mr-2">${displayIcon} ${p.activity}</span>`;
+	    // Start with the Emoji
+	    let metaHtml = `<span class="mr-1.5">${displayIcon}</span>`;
 	
-	    // 2. Safely add tags only if they exist, without breaking the line
+	    // Add tags in grey, handled as a simple string for the CSS truncation to work
 	    if (p.tags && p.tags.trim().length > 0) {
-	        const tagsList = p.tags.split(' ').map(tag => 
-	            `<span class="text-indigo-500 mr-1">${tag}</span>`
-	        ).join('');
-	        metaHtml += tagsList;
+	        metaHtml += `<span class="text-gray-400 font-normal">${p.tags}</span>`;
 	    }
 	
 	    return `
-	        <div class="bg-white rounded-2xl shadow-sm overflow-hidden cursor-pointer hover:shadow-md transition-all" onclick="jumpToMap(${idx})">
+	        <div class="bg-white rounded-2xl shadow-sm overflow-hidden cursor-pointer hover:shadow-md transition-all flex flex-col" onclick="jumpToMap(${idx})">
 	            <div class="relative aspect-video bg-gray-200">
 	                <img src="${ASSET_BASE}/${p.year}/img/${p.img}" 
 	                     class="w-full h-full object-cover" 
 	                     loading="lazy"
-	                     onerror="this.src='https://via.placeholder.com/400x225?text=No+Image'">
+	                     onerror="this.style.display='none'">
 	            </div>
 	            
-	            <div class="p-4">
-	                <div class="flex justify-between items-center mb-2">
-	                    <span class="text-[10px] font-medium text-gray-400">${p.year}</span>
-	                </div>
+	            <div class="p-3 flex flex-col justify-center min-h-[70px]">
+	                <h3 class="font-bold text-gray-900 leading-tight mb-1 text-sm line-clamp-2">
+	                    ${p.title}
+	                </h3>
 	                
-	                <h3 class="font-bold text-gray-900 leading-tight mb-2">${p.title}</h3>
-	                
-	                <div class="flex flex-wrap items-center text-[10px] font-bold text-gray-500 tracking-tight">
+	                <div class="text-[11px] font-bold text-gray-500 truncate whitespace-nowrap overflow-hidden" title="${p.tags || ''}">
 	                    ${metaHtml}
 	                </div>
 	            </div>
@@ -1112,6 +1107,7 @@
 	
 </body>
 </html>
+
 
 
 
