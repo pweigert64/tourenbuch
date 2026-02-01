@@ -449,9 +449,10 @@
         
         document.getElementById('nav-portal').classList.toggle('opacity-50', isMap);
         document.getElementById('nav-map').classList.toggle('opacity-50', !isMap);
-        
-        //const label = document.getElementById('current-year-label');
-        //label.innerText = `alpine Retrospektive: ${activeYear}`;
+
+		// seems obsolete, but ensures inital setting on refresh (if year not changed)
+        const label = document.getElementById('current-year-label');
+        label.innerText = `alpine Retrospektive: ${activeYear}`;
 
         if(isMap && map) {
             setTimeout(() => {
@@ -1223,6 +1224,7 @@
 	
 </body>
 </html>
+
 
 
 
