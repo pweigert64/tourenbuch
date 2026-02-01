@@ -43,6 +43,21 @@
 		    }
 		}
         #sidebar-years { flex-grow: 1; overflow-y: auto; }
+
+		/* Force the overlay to stay behind the sidebar and header */
+		#sidebar-overlay {
+		    z-index: 14000; 
+		}
+		
+		#sidebar-overlay.hidden {
+		    display: none !important;
+		    pointer-events: none !important; /* Mouse clicks pass through it */
+		}
+		
+		/* Ensure Top Nav is always clickable */
+		#top-nav {
+		    pointer-events: auto !important;
+		}
         
         /* Content Area */
         #content-area { flex-grow: 1; position: relative; display: flex; flex-direction: column; min-width: 0; }
@@ -151,25 +166,29 @@
 </head>
 <body>
 <div id="main-layout">
-	<aside id="sidebar">
-	    <div class="flex items-center justify-between p-5 border-b md:block">
-	        <span class="font-black text-xl tracking-tighter">🏔️ </span>
-			<span class="font-black text-sm tracking-tighter">v0.21</span>
-	        <button onclick="toggleSidebar()" class="text-2xl">✕</button>
+	<aside id="sidebar" class="open"> <div class="flex items-center justify-between p-5 border-b">
+	        <div>
+	            <span class="font-black text-xl tracking-tighter">🏔️</span>
+	            <span class="font-black text-sm tracking-tighter"> v0.23 </span>
+	        </div>
+	        <button onclick="toggleSidebar()" class="text-2xl p-2 hover:bg-gray-100 rounded">✕</button>
 	    </div>
 	    <div id="sidebar-years"></div>
 	</aside>
 	<div id="sidebar-overlay" onclick="toggleSidebar()" class="hidden fixed inset-0 bg-black/30 z-[14000]"></div>
 	
     <div id="content-area">
-        <header id="top-nav">
-		 	 <button onclick="toggleSidebar()" class="mr-2 text-2xl" title="Menu">☰</button>
-             <div id="current-year-label" class="font-black text-indigo-600 italic">Alpine Retrospektive</div>
-             <div class="flex gap-2 bg-gray-100 p-1 rounded-xl">
-                <button onclick="switchView('portal')" id="nav-portal" class="px-4 py-2 rounded-lg bg-white shadow-sm">🗓️</button>
-                <button onclick="switchView('map')" id="nav-map" class="px-4 py-2 rounded-lg opacity-50">🗺️</button>
-             </div>
-        </header>
+		<header id="top-nav" style="z-index: 15000; position: relative;" class="flex items-center justify-between p-4 bg-white shadow-sm">
+		    <div class="flex items-center">
+		        <button onclick="toggleSidebar()" class="mr-3 text-2xl" title="Menu">☰</button>
+		        <div id="current-year-label" class="font-black text-indigo-600 italic tracking-tighter">Alpine Retrospektive</div>
+		    </div>
+		
+		    <div class="flex gap-2 bg-gray-100 p-1 rounded-xl">
+		        <button onclick="switchView('portal')" id="nav-portal" class="px-4 py-2 rounded-lg bg-white shadow-sm">🗓️</button>
+		        <button onclick="switchView('map')" id="nav-map" class="px-4 py-2 rounded-lg opacity-50">🗺️</button>
+		    </div>
+		</header>
 
         <section id="portal-view">
             <div id="portal-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-7xl mx-auto"></div>
@@ -261,19 +280,20 @@
 	function toggleSidebar() {
 	    const sidebar = document.getElementById('sidebar');
 	    const overlay = document.getElementById('sidebar-overlay');
-	    
+	
 	    sidebar.classList.toggle('open');
-	    
-		if (window.innerWidth < 1024) {
-		    if (sidebar.classList.contains('open')) {
-		        overlay.classList.remove('hidden');
-		    } else {
-		        overlay.classList.add('hidden');
-		    }
-		} else {
-		    // Force overlay to stay hidden on PC/Desktop
-		    overlay.classList.add('hidden');
-		}
+	
+	    // ONLY show the dark overlay on mobile/tablet (less than 1024px)
+	    if (window.innerWidth < 1024) {
+	        if (sidebar.classList.contains('open')) {
+	            overlay.classList.remove('hidden');
+	        } else {
+	            overlay.classList.add('hidden');
+	        }
+	    } else {
+	        // ALWAYS hide overlay on PC so it doesn't block the map
+	        overlay.classList.add('hidden');
+	    }
 	}
 
 	/* -------------------------------------------------------------------------
@@ -440,8 +460,13 @@
 	    renderPortal(); 
 	    renderMarkers();
 		
-		// toggle Hamburger when window screen is small
-		if (window.innerWidth <= 768) toggleSidebar();
+		// Auto-close only on small screens
+		if (window.innerWidth < 1024) {
+			const sidebar = document.getElementById('sidebar');
+			if (sidebar.classList.contains('open')) {
+				toggleSidebar();
+			}
+		}
 	};
 	
     /**
@@ -1163,6 +1188,7 @@
 	
 </body>
 </html>
+
 
 
 
