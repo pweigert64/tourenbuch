@@ -118,6 +118,14 @@
 		.leaflet-tooltip-top.hover-title:before {
 			border-top-color: rgba(0, 0, 0, 0.8);
 		}
+		/* avoid the hover-title if we are on a touch device without mouse */
+		@media (hover: none) {
+		    .hover-title, .leaflet-tooltip-pane {
+		        display: none !important;
+				visibility: hidden !important;
+        		pointer-events: none !important;
+		    }
+		}
 		.leaflet-tooltip-right:before, .leaflet-tooltip-left:before { display: none; }
 
 		/* no image found or defined */
@@ -155,7 +163,7 @@
 	<aside id="sidebar">
 	    <div class="flex items-center justify-between p-5 border-b md:block">
 	        <span class="font-black text-xl tracking-tighter">🏔️ </span>
-			<span class="font-black text-sm tracking-tighter">v0.20.1 </span>
+			<span class="font-black text-sm tracking-tighter">v0.25 </span>
 	        <button onclick="toggleSidebar()" class="md:hidden text-2xl">✕</button>
 	    </div>
 	    <div id="sidebar-years"></div>
@@ -1160,6 +1168,7 @@
 	
 </body>
 </html>
+
 
 
 
