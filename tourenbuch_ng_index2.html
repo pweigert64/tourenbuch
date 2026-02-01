@@ -153,8 +153,9 @@
 <div id="main-layout">
 	<aside id="sidebar">
 	    <div class="flex items-center justify-between p-5 border-b md:block">
-	        <span class="font-black text-xl tracking-tighter">🏔️ v0.20</span>
-	        <button onclick="toggleSidebar()" class="md:hidden text-2xl">✕</button>
+	        <span class="font-black text-xl tracking-tighter">🏔️ </span>
+			<span class="font-black text-sm tracking-tighter">v0.21</span>
+	        <button onclick="toggleSidebar()" class="text-2xl">✕</button>
 	    </div>
 	    <div id="sidebar-years"></div>
 	</aside>
@@ -162,8 +163,8 @@
 	
     <div id="content-area">
         <header id="top-nav">
-		 	 <button onclick="toggleSidebar()" class="md:hidden mr-2 text-2xl" title="Menu">☰</button>
-             <div id="current-year-label" class="font-black text-indigo-600 tracking-widest uppercase italic">Alpine Retrospektive</div>
+		 	 <button onclick="toggleSidebar()" class="mr-2 text-2xl" title="Menu">☰</button>
+             <div id="current-year-label" class="font-black text-indigo-600 italic">Alpine Retrospektive</div>
              <div class="flex gap-2 bg-gray-100 p-1 rounded-xl">
                 <button onclick="switchView('portal')" id="nav-portal" class="px-4 py-2 rounded-lg bg-white shadow-sm">🗓️</button>
                 <button onclick="switchView('map')" id="nav-map" class="px-4 py-2 rounded-lg opacity-50">🗺️</button>
@@ -263,12 +264,16 @@
 	    
 	    sidebar.classList.toggle('open');
 	    
-	    // Show or hide the dark overlay
-	    if (sidebar.classList.contains('open')) {
-	        overlay.classList.remove('hidden');
-	    } else {
-	        overlay.classList.add('hidden');
-	    }
+		if (window.innerWidth < 1024) {
+		    if (sidebar.classList.contains('open')) {
+		        overlay.classList.remove('hidden');
+		    } else {
+		        overlay.classList.add('hidden');
+		    }
+		} else {
+		    // Force overlay to stay hidden on PC/Desktop
+		    overlay.classList.add('hidden');
+		}
 	}
 
 	/* -------------------------------------------------------------------------
@@ -1158,6 +1163,7 @@
 	
 </body>
 </html>
+
 
 
 
