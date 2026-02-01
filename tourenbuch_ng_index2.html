@@ -47,16 +47,38 @@
         
         /* Content Area */
         #content-area { 
-	    display: flex; 
+	    	display: flex; 
 		    flex-direction: column; 
 		    height: 100dvh; /* Keeps it exactly the height of the phone screen */
 		    overflow: hidden; /* Prevents the title from scrolling away */
 		}
-		#top-nav { 
-		    height: 60px; 
-		    flex-shrink: 0; /* Prevents the header from "squashing" on small phones */
-		    z-index: 10001; 
-		}        
+		/* the title bar with the hamburger to the left and the view-switch to the right */
+		#top-nav {
+		    height: 60px;
+		    min-height: 60px;
+		    display: flex;
+		    flex-direction: row;
+		    flex-wrap: nowrap;      /* Force everything on ONE line */
+		    align-items: center;
+		    justify-content: space-between;
+		    padding: 0 10px;
+		    background: white;
+		    z-index: 10001;
+		    overflow: hidden;       /* Safety: nothing leaks out */
+		    flex-shrink: 0;         /* Header never gets crushed */
+		}
+		/* alpine Retrospective: YYYY */
+		#current-year-label {
+		    flex-grow: 1;           /* Take the middle space */
+		    flex-shrink: 1;         /* Shrink if the phone is narrow */
+		    min-width: 0;           /* REQUIRED to allow shrinking/ellipsis */
+		    text-align: center;
+		    white-space: nowrap;    /* NO second line, ever */
+		    overflow: hidden;       /* Hide extra text if it doesn't fit */
+		    text-overflow: ellipsis; /* Add "..." if text is too long */
+		    font-size: 15px;        /* Fixed size for reliability */
+		}
+		
         /* View Containers: Absolute positioning relative to #content-area */
         #portal-view, #map-view { 
 		    flex-grow: 1; /* Take up the remaining space */
@@ -175,7 +197,7 @@
 	<aside id="sidebar">
 	    <div class="flex items-center justify-between p-5 border-b md:block">
 	        <span class="font-black text-xl tracking-tighter">🏔️ </span>
-			<span class="font-black text-sm tracking-tighter">v0.26 </span>
+			<span class="font-black text-sm tracking-tighter">v0.27 </span>
 	        <button onclick="toggleSidebar()" class="md:hidden text-2xl">✕</button>
 	    </div>
 	    <div id="sidebar-years"></div>
@@ -185,7 +207,7 @@
     <div id="content-area">
         <header id="top-nav">
 		 	 <button onclick="toggleSidebar()" class="md:hidden mr-2 text-2xl" title="Menu">☰</button>
-             <div id="current-year-label" class="font-black text-slate-500 tracking-normal italic">Alpine Retrospektive</div>
+             <div id="current-year-label" class="font-bold text-slate-500 tracking-normal italic">Alpine Retrospektive</div>
              <div class="flex gap-2 bg-gray-100 p-1 rounded-xl">
                 <button onclick="switchView('portal')" id="nav-portal" class="px-4 py-2 rounded-lg bg-white shadow-sm">🗓️</button>
                 <button onclick="switchView('map')" id="nav-map" class="px-4 py-2 rounded-lg opacity-50">🗺️</button>
@@ -1180,6 +1202,7 @@
 	
 </body>
 </html>
+
 
 
 
