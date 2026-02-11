@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Tourenbuch - alpine Retrospektive (Hybrid)</title>
+    <title>Alpine Retrospektive (Hybrid)</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet-gpx/1.7.0/gpx.min.js"></script>
@@ -219,7 +219,7 @@
 	    <div class="flex items-center justify-between p-5 border-b md:block">
 			<div class="flex items-center gap-2">
             	<img src="favicon.png" alt="Alpine Logo" class="w-6 h-6 inline-block">
-            	<span class="font-light text-sm tracking-tighter text-slate-400">v0.37</span>
+            	<span class="font-light text-sm tracking-tighter text-slate-400">v0.38</span>
         	</div>
 			<button onclick="toggleSidebar()" class="md:hidden text-2xl">✕</button>
 	    </div>
@@ -268,7 +268,7 @@
                     <div id="activity-panel" class="pop-out-panel">
                         <div class="text-[10px] font-bold text-gray-400 uppercase">Activity Filter:</div>
                         <div class="flex items-center justify-between gap-2 mb-1 bg-gray-50 p-1 rounded-md">
-                            <span class="text-[10px] font-bold text-gray-400 ">alpine Retrospektive:</span>
+                            <span class="text-[10px] font-bold text-gray-400 ">Alpine Retrospektive:</span>
                             <select id="year-select" class="w-24 text-sm p-0.5 border rounded font-bold bg-white"></select>
                         </div>
                         <div class="grid grid-cols-6 gap-0.5">
@@ -466,7 +466,7 @@
 
 		// seems obsolete, but ensures inital setting on refresh (if year not changed)
         const label = document.getElementById('current-year-label');
-        label.innerText = `alpine Retrospektive: ${activeYear}`;
+        label.innerText = `Alpine Retrospektive: ${activeYear}`;
 
         if(isMap && map) {
             setTimeout(() => {
@@ -497,7 +497,7 @@
 	    // 3. Update the Top Nav Label
 	    const isMapVisible = (document.getElementById('map-view').style.display === 'block');
 	    const label = document.getElementById('current-year-label');
-	    label.innerText = `alpine Retrospektive: ${yr}`;
+	    label.innerText = `Alpine Retrospektive: ${yr}`;
 	    
 	    // 4. Refresh Data
 	    renderPortal(); 
@@ -588,11 +588,11 @@
 	                ${displayIcon} ${p.activity || 'Archived'}
 	            </div>
 	            <div class="flex flex-row gap-2 justify-center">
-	                <a ${albumBtnLink} class="flex-1 p-2 py-[3px] ${albumBtnClass} text-white text-[10px] font-bold rounded flex items-center justify-center leading-none">
+	                <a ${albumBtnLink} class="flex-1 p-2 py-[4px] ${albumBtnClass} text-white text-[10px] font-bold rounded flex items-center justify-center leading-none">
 	                    ${albumBtnText}
 	                </a>
 	                <button onclick="${hasTrack ? `loadGpxTrack(${idx})` : ''}" 
-	                        class="flex-1 p-2 py-[3px] ${trackBtnClass} text-white text-[10px] font-bold rounded flex items-center justify-center leading-none">
+	                        class="flex-1 p-2 py-[4px] ${trackBtnClass} text-white text-[10px] font-bold rounded flex items-center justify-center leading-none">
 	                    ${trackBtnText}
 	                </button>
 	            </div>
@@ -1290,6 +1290,7 @@
 	
 </body>
 </html>
+
 
 
 
