@@ -136,6 +136,16 @@
         .filter-button-active { background: #4f46e5 !important; color: white !important; }
 		/* Activities Popup & Title Styling */
 		.leaflet-popup-content { width: 200px !important; margin: 10px; }
+		/* This targets any anchor inside our custom popups (still leaflet) specifically */
+		.custom-tour-popup a, 
+		.custom-tour-popup a:hover, 
+		.custom-tour-popup a:visited {
+		    color: white !important;
+		    text-decoration: none !important;
+		    display: flex; /* Helps with vertical alignment */
+		    align-items: center;
+		    justify-content: center;
+		}
 		.popup-title { 
 			font-size: 10px; line-height: 1.3; margin: 5px 0; font-weight: bold;
 			display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
@@ -209,7 +219,7 @@
 	    <div class="flex items-center justify-between p-5 border-b md:block">
 			<div class="flex items-center gap-2">
             	<img src="favicon.png" alt="Alpine Logo" class="w-6 h-6 inline-block">
-            	<span class="font-light text-sm tracking-tighter text-slate-400">v0.34</span>
+            	<span class="font-light text-sm tracking-tighter text-slate-400">v0.35</span>
         	</div>
 			<button onclick="toggleSidebar()" class="md:hidden text-2xl">✕</button>
 	    </div>
@@ -557,13 +567,13 @@
 	    
 	    if (!hasTrack) {
 	        trackBtnClass = 'bg-gray-300 cursor-not-allowed';
-	        trackBtnText = '<span class="text-[12px] mr-1">🚫</span> NO TRACK';
+	        trackBtnText = '<span class="text-[14px] mr-1">🚫</span> NO TRACK';
 	    } else if (active) {
 	        trackBtnClass = 'bg-gray-500'; // Gray = "Click to hide"
-	        trackBtnText = '<span class="text-[12px] mr-1">❌</span> HIDE';
+	        trackBtnText = '<span class="text-[14px] mr-1">❌</span> HIDE';
 	    } else {
 	        trackBtnClass = 'bg-emerald-700'; // Green = "Click to show"
-	        trackBtnText = '<span class="text-[12px] mr-1">🗺️</span> TRACK';
+	        trackBtnText = '<span class="text-[14px] mr-1">🗺️</span> TRACK';
 	    }
 	
 	    const imgHtml = (p.img && p.img.length > 4) 
@@ -578,11 +588,11 @@
 	                ${displayIcon} ${p.activity || 'Archived'}
 	            </div>
 	            <div class="flex flex-row gap-2 justify-center">
-	                <a ${albumBtnLink} class="flex-1 p-2 ${albumBtnClass} text-white text-[10px] font-bold rounded text-center">
+	                <a ${albumBtnLink} class="flex-1 p-2 ${albumBtnClass} text-white text-[10px] font-bold rounded text-center leading-normal">
 	                    ${albumBtnText}
 	                </a>
 	                <button onclick="${hasTrack ? `loadGpxTrack(${idx})` : ''}" 
-	                        class="flex-1 p-2 ${trackBtnClass} text-white text-[10px] font-bold rounded">
+	                        class="flex-1 p-2 ${trackBtnClass} text-white text-[10px] font-bold rounded leading-normal">
 	                    ${trackBtnText}
 	                </button>
 	            </div>
@@ -1280,6 +1290,7 @@
 	
 </body>
 </html>
+
 
 
 
