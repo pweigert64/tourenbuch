@@ -874,6 +874,7 @@
 		if (loadedTracks[idx]) {
 			map.removeLayer(loadedTracks[idx].group);
 			delete loadedTracks[idx];
+			refreshAllMarkerPopups(); // status toggle
 			renderMarkers();
 			return;
 		}
@@ -903,6 +904,7 @@
 			}
 			
 			loadedTracks[idx] = { group: trackGroup, filename: p.gpx, layer: e.target };
+			refreshAllMarkerPopups();
 			renderMarkers();
 		}).on('error', () => {
 			if (shouldZoom) map.flyTo([p.lat, p.lon], 15);
@@ -1187,6 +1189,7 @@
 		// Reset the tracking object so the map "forgets" what was loaded
 		loadedTracks = {};
 		// Refresh the UI/Markers
+		refreshAllMarkerPopups();
 		renderMarkers();
 	};
 
@@ -1275,6 +1278,7 @@
 	
 </body>
 </html>
+
 
 
 
