@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Tourenbuch - Hybrid View</title>
+    <title>Tourenbuch - alpine Retrospektive (Hybrid)</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet-gpx/1.7.0/gpx.min.js"></script>
@@ -132,7 +132,6 @@
         .marker-bike { background: #065f46; } .marker-bike-hike { background: #f97316; } .marker-trip { background: #9333ea; } 
         .marker-unknown { background: #6b7280; }
         .emoji-marker-inner { font-size: 11pt; background: white; border-radius: 50%; width: 18px; height: 18px; display: flex; align-items: center; justify-content: center; }
-        .photo-popup-img { width: 100%; border-radius: 0.4rem; object-fit: cover; height: 120px; margin-bottom: 5px; }
         .filter-button { padding: 8px; font-size: 0.75rem; font-weight: 700; border-radius: 8px; cursor: pointer; border: 1px solid #d1d5db; text-align: center; width: 100%; }
         .filter-button-active { background: #4f46e5 !important; color: white !important; }
 		/* Activities Popup & Title Styling */
@@ -462,7 +461,7 @@
         if(isMap && map) {
             setTimeout(() => {
                 map.invalidateSize();
-                renderMarkers();
+                renderMarkers(); // Force markers to re-evaluate their 'active' status
             }, 300); // Give CSS time to render the div
         } else {
             renderPortal();
@@ -497,6 +496,96 @@
 		// toggle Hamburger when window screen is small
 		if (window.innerWidth <= 768) toggleSidebar();
 	};
+	
+	/**
+     * Within the map view toggle the track button
+     * @param url (track)
+	 * @param activityId (id of marker)
+     */
+	window.toggleTrack = function(url, activityId) {
+	    if (window.currentTrackUrl === url) {
+	        // Already showing this one? Remove it.
+	        removeTrack(); 
+	    } else {
+	        // Show the new one
+	        loadTrack(url); 
+	    }
+	    
+	    // IMPORTANT: Tell all markers to update their buttons right now
+	    refreshAllMarkerPopups();
+	};
+	
+ 	/**
+     * refreshes the button state and recreate HTML 
+     */
+	function refreshAllMarkerPopups() {
+	    map.eachLayer((layer) => {
+	        if (layer instanceof L.Marker && layer.options.activityData) {
+	            const p = layer.options.activityData;
+	            const idx = layer._idx;
+	            
+	            // We need to re-generate the popup content string 
+	            // This is just a tiny refactor of your createMarker logic
+	            const newContent = getPopupHTML(p, idx); 
+	            layer.setPopupContent(newContent);
+	        }
+	    });
+	}
+	
+	// Helper to keep code DRY (Don't Repeat Yourself)
+	// Copy the HTML building logic from createMarker into this function
+	// the buttons and the image and the title and the activity
+	function getPopupHTML(p, idx) {
+	    const rawAct = (p.activity) ? p.activity.toLowerCase().trim() : '';
+	    const isKnown = ICONS_MAP.hasOwnProperty(rawAct);
+	    const displayIcon = isKnown ? ICONS_MAP[rawAct] : '❓';
+	    
+	    // THE STATE CHECK: Is this track currently visible?
+	    const active = !!loadedTracks[idx]; 
+	
+	    // ALBUM BUTTON LOGIC
+	    const hasAlbum = (p.album && p.album.startsWith('http'));
+	    const albumBtnClass = hasAlbum ? 'bg-indigo-900' : 'bg-gray-300 cursor-not-allowed';
+	    const albumBtnText = hasAlbum ? '📸 ALBUM' : '🚫 NO ALBUM';
+	    const albumBtnLink = hasAlbum ? `href="${p.album}" target="_blank"` : 'onclick="return false;"';
+	
+	    // TRACK BUTTON LOGIC
+	    const hasTrack = (p.gpx && p.gpx.length > 5);
+	    let trackBtnClass, trackBtnText;
+	    
+	    if (!hasTrack) {
+	        trackBtnClass = 'bg-gray-300 cursor-not-allowed';
+	        trackBtnText = '🚫 NO TRACK';
+	    } else if (active) {
+	        trackBtnClass = 'bg-gray-500'; // Gray = "Click to hide"
+	        trackBtnText = '❌ HIDE';
+	    } else {
+	        trackBtnClass = 'bg-emerald-700'; // Green = "Click to show"
+	        trackBtnText = '🗺️ TRACK';
+	    }
+	
+	    const imgHtml = (p.img && p.img.length > 4) 
+	        ? `<img src="${ASSET_BASE}/${p.year}/img/${p.img}" class="photo-popup-img" onerror="this.style.display='none'">` 
+	        : '';
+	
+	    return `
+	        <div class="text-center">
+	            ${imgHtml}
+	            <div class="popup-title" title="${p.title}">${p.title}</div>
+	            <div style="font-size: 9px; color: #666; margin-bottom: 8px;">
+	                ${displayIcon} ${p.activity || 'Archived'}
+	            </div>
+	            <div class="flex flex-row gap-2 justify-center">
+	                <a ${albumBtnLink} class="flex-1 p-2 ${albumBtnClass} text-white text-[10px] font-bold rounded text-center">
+	                    ${albumBtnText}
+	                </a>
+	                <button onclick="${hasTrack ? `loadGpxTrack(${idx})` : ''}" 
+	                        class="flex-1 p-2 ${trackBtnClass} text-white text-[10px] font-bold rounded">
+	                    ${trackBtnText}
+	                </button>
+	            </div>
+	        </div>`;
+	}
 	
     /**
      * Populates the sidebar with years from the dataset
@@ -645,8 +734,12 @@
 	            });
 	
 	            if (p.gpx && p.gpx.length > 5 && !loadedTracks[idx]) {
-	                loadGpxTrack(idx, true); // true = zoom to track bounds
-	            }
+				    const track = loadGpxTrack(idx, true);
+				    // NEW: Wait for track to finish loading then refresh the UI
+				    track.on('loaded', () => {
+				        refreshAllMarkerPopups();
+				    });
+				}
 	        }
 	    }, 400); 
 	}
@@ -863,71 +956,25 @@
 	 * @returns {L.Marker} - The configured Leaflet marker.
 	 */
 	function createMarker(p, idx) {
-	    // 1. Determine Activity and Icon
-	    const rawAct = (p.activity) ? p.activity.toLowerCase().trim() : '';
-	    const isKnown = ICONS_MAP.hasOwnProperty(rawAct);
-	    const activityKey = isKnown ? rawAct : 'unknown';
-	    const displayIcon = isKnown ? ICONS_MAP[rawAct] : '❓';
-	    const active = !!loadedTracks[idx]; // Is the GPX track currently visible?
+	    // Determine Activity and Icon
+		const rawAct = (p.activity) ? p.activity.toLowerCase().trim() : '';
+	    const activityKey = ICONS_MAP.hasOwnProperty(rawAct) ? rawAct : 'unknown';
+	    const displayIcon = ICONS_MAP[activityKey] || '❓'; // ? for unknown actitvityKey 
 	
-	    // 2. Build the Icon (using your divIcon logic)
+	    // Build the Icon (using your divIcon logic)
 	    const icon = L.divIcon({
 	        className: `emoji-marker-outer marker-${activityKey.replace('+', '-')}`,
 	        html: `<span class="emoji-marker-inner">${displayIcon}</span>`,
 	        iconSize: [26, 26]
 	    });
 	
-	    // 3. Prepare Popup Components
-	    // Album Button Logic
-	    const hasAlbum = (p.album && p.album.startsWith('http'));
-	    const albumBtnClass = hasAlbum ? 'bg-indigo-900' : 'bg-gray-300 cursor-not-allowed';
-	    const albumBtnText = hasAlbum ? '📸 ALBUM' : '🚫 NO ALBUM';
-	    const albumBtnLink = hasAlbum ? `href="${p.album}" target="_blank"` : 'onclick="return false;"';
-	
-	    // Track Button Logic
-	    const hasTrack = (p.gpx && p.gpx.length > 5);
-	    let trackBtnClass, trackBtnText;
-	    if (!hasTrack) {
-	        trackBtnClass = 'bg-gray-300 cursor-not-allowed';
-	        trackBtnText = '🚫 NO TRACK';
-	    } else if (active) {
-	        trackBtnClass = 'bg-gray-500'; // Gray = "Click to hide"
-	        trackBtnText = '❌ HIDE';
-	    } else {
-	        trackBtnClass = 'bg-emerald-700'; // Green = "Click to show"
-	        trackBtnText = '🗺️ TRACK';
-	    }
-	
-	    // Image Logic
-	    const imgHtml = (p.img && p.img.length > 4) 
-	        ? `<img src="${ASSET_BASE}/${p.year}/img/${p.img}" class="photo-popup-img" onerror="this.style.display='none'">` 
-	        : '';
-	
-	    // 4. Construct the Popup HTML
-	    const content = `
-	        <div class="text-center">
-	            ${imgHtml}
-	            <div class="popup-title" title="${p.title}">${p.title}</div>
-	            <div style="font-size: 9px; color: #666; margin-bottom: 8px;">
-	                ${displayIcon} ${p.activity || 'Archived'}
-	            </div>
-	            <div class="flex flex-row gap-2 justify-center">
-	                <a ${albumBtnLink} class="flex-1 p-2 ${albumBtnClass} text-white text-[10px] font-bold rounded text-center">
-	                    ${albumBtnText}
-	                </a>
-	                <button onclick="${hasTrack ? `loadGpxTrack(${idx})` : ''}" 
-	                        class="flex-1 p-2 ${trackBtnClass} text-white text-[10px] font-bold rounded">
-	                    ${trackBtnText}
-	                </button>
-	            </div>
-	        </div>`;
-	
-	    // 5. Create and Bind the Marker
+	    // Create and Bind the Marker
 	    const m = L.marker([p.lat, p.lon], { 
 	        icon: icon, 
-	        zIndexOffset: 1000 
+	        zIndexOffset: 1000
+			activityData: p // anchor for refresh
 	    })
-	    .bindPopup(content, {
+	    .bindPopup(getPopupHTML(p, idx), {
 	        minWidth: 200,
 	        maxWidth: 200,
 	        className: 'custom-tour-popup'
@@ -1153,7 +1200,7 @@
 	    // 1. Get the list of what SHOULD be visible
 	    const targets = getFilteredTours('map');
 	    
-	    // Create a Set of indices for lightning-fast lookups
+	    // Create a Set of indices for fast lookups
 	    const targetIndices = new Set(targets.map(p => photoMarkers.indexOf(p)));
 	
 	    // 2. HIDE markers that are currently out of filter range
@@ -1195,8 +1242,7 @@
 	        if (i < targets.length) {
 	            requestAnimationFrame(processBatch);
 	        }
-	    }
-	    
+	    }   
 	    processBatch();
 	}
 	
@@ -1229,6 +1275,7 @@
 	
 </body>
 </html>
+
 
 
 
