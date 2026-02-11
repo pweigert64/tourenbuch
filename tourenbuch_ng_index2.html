@@ -219,7 +219,7 @@
 	    <div class="flex items-center justify-between p-5 border-b md:block">
 			<div class="flex items-center gap-2">
             	<img src="favicon.png" alt="Alpine Logo" class="w-6 h-6 inline-block">
-            	<span class="font-light text-sm tracking-tighter text-slate-400">v0.35</span>
+            	<span class="font-light text-sm tracking-tighter text-slate-400">v0.36</span>
         	</div>
 			<button onclick="toggleSidebar()" class="md:hidden text-2xl">✕</button>
 	    </div>
@@ -557,8 +557,8 @@
 		// need to override the link representation (blue/underline) with white and no-underline
 	    const albumBtnClass = hasAlbum ? 'bg-sky-600 text-white no-underline' :
 			                             'bg-gray-300 cursor-not-allowed';
-	    const albumBtnText = hasAlbum ? '<span class="text-[12px] mr-1">📸</span> ALBUM' : 
-		                                '<span class="text-[12px] mr-1">🚫</span> NO ALBUM';
+	    const albumBtnText = hasAlbum ? '<span class="text-[14px] mr-1">📸</span> ALBUM' : 
+		                                '<span class="text-[14px] mr-1">🚫</span> NO ALBUM';
 	    const albumBtnLink = hasAlbum ? `href="${p.album}" target="_blank"` : 'onclick="return false;"';
 	
 	    // TRACK BUTTON LOGIC
@@ -588,11 +588,11 @@
 	                ${displayIcon} ${p.activity || 'Archived'}
 	            </div>
 	            <div class="flex flex-row gap-2 justify-center">
-	                <a ${albumBtnLink} class="flex-1 p-2 ${albumBtnClass} text-white text-[10px] font-bold rounded text-center leading-normal">
+	                <a ${albumBtnLink} class="flex-1 p-2 py-[2px] ${albumBtnClass} text-white text-[10px] font-bold rounded flex items-center justify-center leading-none">
 	                    ${albumBtnText}
 	                </a>
 	                <button onclick="${hasTrack ? `loadGpxTrack(${idx})` : ''}" 
-	                        class="flex-1 p-2 ${trackBtnClass} text-white text-[10px] font-bold rounded leading-normal">
+	                        class="flex-1 p-2 py-[2px] ${trackBtnClass} text-white text-[10px] font-bold rounded flex items-center justify-center leading-none">
 	                    ${trackBtnText}
 	                </button>
 	            </div>
@@ -1290,6 +1290,7 @@
 	
 </body>
 </html>
+
 
 
 
