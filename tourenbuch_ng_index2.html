@@ -219,7 +219,7 @@
 	    <div class="flex items-center justify-between p-5 border-b md:block">
 			<div class="flex items-center gap-2">
             	<img src="favicon.png" alt="Alpine Logo" class="w-6 h-6 inline-block">
-            	<span class="font-light text-sm tracking-tighter text-slate-400">v0.36</span>
+            	<span class="font-light text-sm tracking-tighter text-slate-400">v0.37</span>
         	</div>
 			<button onclick="toggleSidebar()" class="md:hidden text-2xl">✕</button>
 	    </div>
@@ -588,11 +588,11 @@
 	                ${displayIcon} ${p.activity || 'Archived'}
 	            </div>
 	            <div class="flex flex-row gap-2 justify-center">
-	                <a ${albumBtnLink} class="flex-1 p-2 py-[2px] ${albumBtnClass} text-white text-[10px] font-bold rounded flex items-center justify-center leading-none">
+	                <a ${albumBtnLink} class="flex-1 p-2 py-[3px] ${albumBtnClass} text-white text-[10px] font-bold rounded flex items-center justify-center leading-none">
 	                    ${albumBtnText}
 	                </a>
 	                <button onclick="${hasTrack ? `loadGpxTrack(${idx})` : ''}" 
-	                        class="flex-1 p-2 py-[2px] ${trackBtnClass} text-white text-[10px] font-bold rounded flex items-center justify-center leading-none">
+	                        class="flex-1 p-2 py-[3px] ${trackBtnClass} text-white text-[10px] font-bold rounded flex items-center justify-center leading-none">
 	                    ${trackBtnText}
 	                </button>
 	            </div>
@@ -1290,6 +1290,7 @@
 	
 </body>
 </html>
+
 
 
 
