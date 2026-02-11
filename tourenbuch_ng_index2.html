@@ -209,7 +209,7 @@
 	    <div class="flex items-center justify-between p-5 border-b md:block">
 			<div class="flex items-center gap-2">
             	<img src="favicon.png" alt="Alpine Logo" class="w-6 h-6 inline-block">
-            	<span class="font-black text-sm tracking-tighter text-slate-400">v0.33</span>
+            	<span class="font-light text-sm tracking-tighter text-slate-400">v0.34</span>
         	</div>
 			<button onclick="toggleSidebar()" class="md:hidden text-2xl">✕</button>
 	    </div>
@@ -516,7 +516,7 @@
 	};
 	
  	/**
-     * refreshes the button state and recreate HTML 
+     * refreshes the button state and regenerate popup-HTML 
      */
 	function refreshAllMarkerPopups() {
 	    map.eachLayer((layer) => {
@@ -525,7 +525,6 @@
 	            const idx = layer._idx;
 	            
 	            // We need to re-generate the popup content string 
-	            // This is just a tiny refactor of your createMarker logic
 	            const newContent = getPopupHTML(p, idx); 
 	            layer.setPopupContent(newContent);
 	        }
@@ -545,8 +544,11 @@
 	
 	    // ALBUM BUTTON LOGIC
 	    const hasAlbum = (p.album && p.album.startsWith('http'));
-	    const albumBtnClass = hasAlbum ? 'bg-indigo-900' : 'bg-gray-300 cursor-not-allowed';
-	    const albumBtnText = hasAlbum ? '📸 ALBUM' : '🚫 NO ALBUM';
+		// need to override the link representation (blue/underline) with white and no-underline
+	    const albumBtnClass = hasAlbum ? 'bg-sky-600 text-white no-underline' :
+			                             'bg-gray-300 cursor-not-allowed';
+	    const albumBtnText = hasAlbum ? '<span class="text-[12px] mr-1">📸</span> ALBUM' : 
+		                                '<span class="text-[12px] mr-1">🚫</span> NO ALBUM';
 	    const albumBtnLink = hasAlbum ? `href="${p.album}" target="_blank"` : 'onclick="return false;"';
 	
 	    // TRACK BUTTON LOGIC
@@ -555,13 +557,13 @@
 	    
 	    if (!hasTrack) {
 	        trackBtnClass = 'bg-gray-300 cursor-not-allowed';
-	        trackBtnText = '🚫 NO TRACK';
+	        trackBtnText = '<span class="text-[12px] mr-1">🚫</span> NO TRACK';
 	    } else if (active) {
 	        trackBtnClass = 'bg-gray-500'; // Gray = "Click to hide"
-	        trackBtnText = '❌ HIDE';
+	        trackBtnText = '<span class="text-[12px] mr-1">❌</span> HIDE';
 	    } else {
 	        trackBtnClass = 'bg-emerald-700'; // Green = "Click to show"
-	        trackBtnText = '🗺️ TRACK';
+	        trackBtnText = '<span class="text-[12px] mr-1">🗺️</span> TRACK';
 	    }
 	
 	    const imgHtml = (p.img && p.img.length > 4) 
@@ -1278,6 +1280,7 @@
 	
 </body>
 </html>
+
 
 
 
