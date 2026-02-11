@@ -971,7 +971,7 @@
 	    // Create and Bind the Marker
 	    const m = L.marker([p.lat, p.lon], { 
 	        icon: icon, 
-	        zIndexOffset: 1000
+	        zIndexOffset: 1000,
 			activityData: p // anchor for refresh
 	    })
 	    .bindPopup(getPopupHTML(p, idx), {
@@ -1275,6 +1275,7 @@
 	
 </body>
 </html>
+
 
 
 
