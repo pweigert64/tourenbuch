@@ -53,7 +53,7 @@
 		        min-height: 40px;
 		    }
 		}
-        #sidebar-years { flex-grow: 1; overflow-y: auto; }
+        #sidebar-filter { flex-grow: 1; overflow-y: auto; }
         
         /* Content Area */
         #content-area { 
@@ -223,7 +223,7 @@
         	</div>
 			<button onclick="toggleSidebar()" class="md:hidden text-2xl">✕</button>
 	    </div>
-	    <div id="sidebar-years"></div>
+	    <div id="sidebar-filter"></div>
 	</aside>
 	<div id="sidebar-overlay" onclick="toggleSidebar()" class="hidden fixed inset-0 bg-black/30 z-[14000]"></div>
 	
@@ -308,17 +308,24 @@
 	//const ASSET_BASE = 'https://raw.githubusercontent.com/pweigert64/tourenbuch/main';
     const ASSET_BASE = '.';
     const COLORS = { 
-        'ski': '#4f46e5', 'hike': '#b54708', 'climb': '#dc2626', 
-        'bike': '#065f46', 'bike+hike': '#f97316', 'trip': '#9333ea', 'unknown': '#6b7280' 
+        'ski' : '#4f46e5', 'hike'     : '#b54708', 'climb': '#dc2626', 
+        'bike': '#065f46', 'bike+hike': '#f97316', 'trip' : '#9333ea',
+		'unknown': '#6b7280' 
     };
     const ICONS_MAP = { 
-        'ski': '❄️', 'hike': '🥾', 'climb': '⛰️', 'bike': '🚴', 'bike+hike': '🚵', 'trip': '🏛️' 
+        'ski' : '❄️', 'hike'     : '🥾', 'climb': '⛰️',
+	    'bike': '🚴', 'bike+hike': '🚵', 'trip' : '🏛️', 
+		'unknown': '❓'
     };
 
     let map, overviewLayer, detailLayer, hikingLayer, cyclingLayer;
     let photoMarkers = [], currentMarkers = [], allMarkers = [], loadedTracks = {};
-    let activeFilters = { ski: true, hike: true, climb: true, bike: true, 'bike+hike': true, 'trip': true, 'unknown': true };
-    let activeYear = 'All', isInitialLoad = true, switchThreshold = 16; 
+    let activeFilters = { 
+		year: 'All',
+		search: '',
+		ski: true,  hike       : true, climb : true,
+		bike: true, 'bike+hike': true, trip  : true, unknown: true };
+    let isInitialLoad = true, switchThreshold = 16; 
     let MAPTILER_KEY, SHEETS_CSV_URL;
 
 	/* -------------------------------------------------------------------------
@@ -401,15 +408,15 @@
                                 .sort((a, b) => b - a);
             
             if (isInitialLoad) {
-                activeYear = yearsInData.length > 0 ? yearsInData[0] : 'All';
+                activeFilters.year = yearsInData.length > 0 ? yearsInData[0] : 'All';
             }
 
             if (!map) {
                 initMap();
-                populateYearSidebar();
+                renderSidebar();
                 switchView('portal'); // Always start in Portal
             } else {
-                populateYearSidebar();
+                renderSidebar();
                 renderPortal();
                 renderMarkers();
             }
@@ -466,7 +473,7 @@
 
 		// seems obsolete, but ensures inital setting on refresh (if year not changed)
         const label = document.getElementById('current-year-label');
-        label.innerText = `Alpine Retrospektive: ${activeYear}`;
+        label.innerText = `Alpine Retrospektive: ${activeFilters.year}`;
 
         if(isMap && map) {
             setTimeout(() => {
@@ -483,10 +490,10 @@
      * @param {string} yr - The selected year (e.g., '2024' or 'All')
      */
 	window.updateActiveYear = function(yr) {
-	    activeYear = yr;
+	    activeFilters.year = yr;
 	    
 	    // 1. Sync the Sidebar (Left)
-	    populateYearSidebar(); 
+	    renderSidebar(); 
 	    
 	    // 2. Sync the Map Dropdown (Bottom Right)
 	    const mapDropdown = document.getElementById('year-select');
@@ -497,7 +504,7 @@
 	    // 3. Update the Top Nav Label
 	    const isMapVisible = (document.getElementById('map-view').style.display === 'block');
 	    const label = document.getElementById('current-year-label');
-	    label.innerText = `Alpine Retrospektive: ${yr}`;
+	    label.innerText = `Year: ${yr}`;
 	    
 	    // 4. Refresh Data
 	    renderPortal(); 
@@ -598,18 +605,128 @@
 	            </div>
 	        </div>`;
 	}
-	
+
+	// fire the Text-Search in the Sidebar
+	function handleSidebarSearch(val) {
+		activeFilters.search = val;
+		filterData(); // This runs the updated filter logic above
+	}
+	/**
+	 * Internal helper for general text search
+	 * Checks multiple fields and handles multiple words
+	 */
+	function matchesGeneralSearch(p, searchStr) {
+		if (!searchStr || searchStr.trim() === "") return true;
+		
+		const s = searchStr.toLowerCase();
+		// Fields to search: Title, Tags, and Description (if exists)
+		const title = (p.title || "").toLowerCase();
+		const tags = (p.tags || "").toLowerCase();
+		const desc = (p.description || "").toLowerCase();
+		
+		// Simple logic: returns true if any field contains the search string
+		// You can later expand this to handle multiple words/terms
+		return title.includes(s) || tags.includes(s) || desc.includes(s);
+	}
+
+	function toggleFilter(key) {
+		activeFilters[key] = !activeFilters[key];
+		renderSidebar(); // Update UI
+		filterData();    // Update Map/Portal
+	}
+
+	function updateYearState(val) {
+		activeFilters.year = val;
+		filterData();
+	}
+
+	function updateSearchState(val) {
+		activeFilters.search = val;
+		// Update the input field manually if cleared via button
+		const searchInput = document.querySelector('#sidebarSearch');
+		if (searchInput) searchInput.value = val;
+		filterData();
+	}
+
+	function resetAllFilters() {
+		// Set all activity keys back to true
+		const activityKeys = ['ski', 'hike', 'climb', 'bike', 'bike+hike', 'trip', 'unknown'];
+		activityKeys.forEach(key => activeFilters[key] = true);
+		renderSidebar();
+		filterData();
+	}
+
+	function filterData() {
+		const filtered = allToursData.filter(p => {
+			// 1. Year Filter (Replaced activeYear with activeFilters.year)
+			const matchesYear = activeFilters.year === 'All' || p.year === activeFilters.year;
+			if (!matchesYear) return false;
+
+			// 2. Sophisticated Text Search (including tags)
+			if (!matchesGeneralSearch(p, activeFilters.search)) return false;
+
+			// 3. Activity Toggle Logic
+			// 'unknown' ignores toggles, others must be true in activeFilters
+			const isUnknown = p.activity === 'unknown';
+			const isTypeActive = activeFilters[p.activity] === true;
+			
+			return isUnknown || isTypeActive;
+		});
+
+		// Final result passed to Map and Portal views
+		updateView(filtered); 
+	}
+
     /**
      * Populates the sidebar with years from the dataset
+	 * HTML is generated to reflect always the actual filter state
      */
-    function populateYearSidebar() {
-        const yrs = ['All', ...new Set(photoMarkers.map(p => p.year.toString()))].sort().reverse();
-        const side = document.getElementById('sidebar-years');
-        side.innerHTML = yrs.map(y => `
-            <div class="year-btn ${y === activeYear ? 'active' : ''}" onclick="updateActiveYear('${y}')">
-                ${y}
-            </div>`).join('');
-    }
+    function renderSidebar() {
+		const sidebarContainer = document.getElementById('sidebar-filter') || document.querySelector('.offcanvas-body');
+		if (!sidebarContainer) return;
+
+		// Get unique years from your data for the dropdown
+		const years = [...new Set(allToursData.map(t => t.year))].sort((a, b) => b - a);
+
+		sidebarContainer.innerHTML = `
+			<div class="px-3 mb-3">
+				<input type="text" class="form-control form-control-sm" 
+					placeholder="Search Title/Tags..." 
+					value="${activeFilters.search}" 
+					oninput="activeFilters.search = this.value; filterData();">
+			</div>
+
+			<div class="px-3 mb-3">
+				<label class="small fw-bold text-muted text-uppercase d-block mb-1">Year</label>
+				<select class="form-select form-select-sm" onchange="activeFilters.year = this.value; filterData(); renderSidebar();">
+					<option value="All" ${activeFilters.year === 'All' ? 'selected' : ''}>All Years</option>
+					${years.map(y => `<option value="${y}" ${activeFilters.year == y ? 'selected' : ''}>${y}</option>`).join('')}
+				</select>
+			</div>
+
+			<div class="px-3">
+				<div class="d-flex justify-content-between align-items-center mb-2">
+					<span class="small fw-bold text-muted text-uppercase">Activity</span>
+					<button onclick="resetAllFilters()" class="btn btn-link p-0 text-danger text-decoration-none" style="font-size:10px">❌ RESET</button>
+				</div>
+				<div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px;">
+					${Object.keys(ICONS_MAP).filter(key => key !== 'unknown').map(key => {
+						const isActive = activeFilters[key];
+						const color = COLORS[key] || '#dee2e6';
+						return `
+							<button onclick="toggleFilter('${key}')"
+									class="btn p-0 d-flex align-items-center justify-content-center text-white"
+									style="aspect-ratio:1/1; font-size:1.2rem; border-radius:4px; border:none;
+										background-color: ${isActive ? color : '#dee2e6'}; 
+										filter: ${isActive ? 'none' : 'grayscale(1)'}; 
+										opacity: ${isActive ? '1' : '0.5'};">
+								${ICONS_MAP[key]}
+							</button>`;
+					}).join('')}
+				</div>
+			</div>
+		`;
+	}
 
 	/**
      * create the HTML for a Portal Grid Cards
@@ -694,7 +811,7 @@
 	    const tourYear = p.year.toString();
 	
 	    // 1. SYNC YEAR
-	    if (activeYear !== 'All' && activeYear !== tourYear) {
+	    if (activeFilters.year !== 'All' && activeFilters.year !== tourYear) {
 	        window.updateActiveYear(tourYear);
 	    }
 	
@@ -808,7 +925,7 @@
 		const currentSelection = photoMarkers.filter((p) => {
 			const rawAct = (p.activity) ? p.activity.toLowerCase().trim() : '';
 			const activityKey = ICONS_MAP.hasOwnProperty(rawAct) ? rawAct : 'unknown';
-			const yearMatch = (activeYear === 'All' || p.year.toString() === activeYear);
+			const yearMatch = (activeFilters.year === 'All' || p.year.toString() === activeFilters.year);
 			const filterMatch = (activityKey === 'unknown') || activeFilters[activityKey];
 			return yearMatch && filterMatch;
 		});
@@ -934,7 +1051,7 @@
 	    // Standard Filter logic
 	    let filtered = photoMarkers.filter(p => {
 	        const pYear = p.year.toString();
-	        const yearMatch = (activeYear === 'All' || pYear === activeYear);
+	        const yearMatch = (activeFilters.year === 'All' || pYear === activeFilters.year);
 	        
 	        const rawAct = p.activity?.toLowerCase().trim();
 	        const activityKey = ICONS_MAP[rawAct] ? rawAct : 'unknown';
@@ -1075,7 +1192,7 @@
 		const targets = customMatches || photoMarkers.filter((p) => {
 			const rawAct = (p.activity) ? p.activity.toLowerCase().trim() : '';
 			const activityKey = ICONS_MAP.hasOwnProperty(rawAct) ? rawAct : 'unknown';
-			const yearMatch = (activeYear === 'All' || p.year.toString() === activeYear);
+			const yearMatch = (activeFilters.year === 'All' || p.year.toString() === activeFilters.year);
 			const filterMatch = (activityKey === 'unknown') || activeFilters[activityKey];
 			return yearMatch && filterMatch;
 		});
@@ -1096,7 +1213,7 @@
 				// OPEN POPUP IF:
 				// 1. It's a Deep Link/Power Search (customMatches exists)
 				// 2. OR it's the Initial Load (Sidebar is "All" and no tracks are loaded yet)
-				const isInitialLoad = !customMatches && activeYear === 'All'; 
+				const isInitialLoad = !customMatches && activeFilters.year === 'All'; 
 				
 				if (customMatches || isInitialLoad) {
 					const firstMarkerData = targets[0];
@@ -1142,7 +1259,7 @@
 		const tracksToProcess = photoMarkers.filter((p) => {
 			const rawAct = (p.activity) ? p.activity.toLowerCase().trim() : '';
 			const activityKey = ICONS_MAP.hasOwnProperty(rawAct) ? rawAct : 'unknown';
-			const yearMatch = (activeYear === 'All' || p.year.toString() === activeYear);
+			const yearMatch = (activeFilters.year === 'All' || p.year.toString() === activeFilters.year);
 			const filterMatch = (activityKey === 'unknown') || activeFilters[activityKey];
 			
 			// --- THE NEPAL & TRIP FIX ---
@@ -1276,8 +1393,8 @@
 	    s.innerHTML = '';
 	    yrs.forEach(y => s.add(new Option(y, y)));
 	    
-	    // Set initial value to current activeYear
-	    s.value = activeYear;
+	    // Set initial value to current activeFilters.year
+	    s.value = activeFilters.year;
 
 		// Use the central sync function
 	    s.onchange = (e) => { window.updateActiveYear(e.target.value); };
