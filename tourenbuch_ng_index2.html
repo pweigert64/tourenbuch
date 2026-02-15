@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Alpine Retrospektive (Hybrid)</title>
+    <title>Alpine Retrospektive</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet-gpx/1.7.0/gpx.min.js"></script>
@@ -232,10 +232,10 @@
     <div id="content-area">
         <header id="top-nav">
 		 	 <button onclick="toggleSidebar()" class="md:hidden mr-2 text-2xl" title="Menu">☰</button>
-             <div id="current-year-label" class="font-bold text-slate-500 tracking-normal italic">Alpine Retrospektive</div>
+             <div id="current-year-label" class="font-bold text-slate-500 tracking-normal italic"></div>
              <div class="flex gap-2 bg-gray-100 p-1 rounded-xl">
-                <button onclick="switchView('portal')" id="nav-portal" class="px-4 py-2 rounded-lg bg-white shadow-sm">🗓️</button>
-                <button onclick="switchView('map')" id="nav-map" class="px-4 py-2 rounded-lg opacity-50">🗺️</button>
+                <button onclick="switchView('portal')" id="nav-portal" class="px-4 py-2 rounded-lg bg-white shadow-sm text-2xl">🗓️</button>
+                <button onclick="switchView('map')" id="nav-map" class="px-4 py-2 rounded-lg opacity-50 text-2xl">🗺️</button>
              </div>
         </header>
 
@@ -306,6 +306,9 @@
 <script>
 	//const ASSET_BASE = 'https://raw.githubusercontent.com/pweigert64/tourenbuch/main';
     const ASSET_BASE = '.';
+	const myTitle = document.title;
+	document.getElementById('current-year-label').textContent = myTitle;
+	
     const COLORS = { 
         'ski': '#4f46e5', 'hike': '#b54708', 'climb': '#dc2626', 
         'bike': '#065f46', 'bike+hike': '#f97316', 'trip': '#9333ea', 'unknown': '#6b7280' 
@@ -475,7 +478,7 @@
 
 		// seems obsolete, but ensures inital setting on refresh (if year not changed)
         const label = document.getElementById('current-year-label');
-        label.innerText = `Alpine Retrospektive: ${activeYear}`;
+        label.innerText = `${myTitle}: ${activeYear}`;
 
         if(isMap && map) {
             setTimeout(() => {
@@ -500,7 +503,7 @@
 	    // Update the Top Nav Label
 	    const isMapVisible = (document.getElementById('map-view').style.display === 'block');
 	    const label = document.getElementById('current-year-label');
-	    label.innerText = `Alpine Retrospektive: ${yr}`;
+	    label.innerText = `${myTitle}: ${yr}`;
 	    
 	    // Refresh Data
 	    renderPortal(); 
