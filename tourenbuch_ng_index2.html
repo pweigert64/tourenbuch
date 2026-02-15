@@ -218,8 +218,8 @@
 	<aside id="sidebar">
 	    <div class="flex items-center justify-between p-5 border-b md:block">
 			<div class="flex items-center gap-2">
-            	<img src="favicon.png" alt="Alpine Logo" class="w-6 h-6 inline-block">
-            	<span class="font-light text-sm tracking-tighter text-slate-400">v0.38</span>
+            	<img src="favicon.png" alt="favIcon" class="w-6 h-6 inline-block">
+            	<span class="font-light text-[8px] tracking-tighter text-slate-400">vers0.38</span>
         	</div>
 			<button onclick="toggleSidebar()" class="md:hidden text-2xl">✕</button>
 	    </div>
@@ -267,10 +267,7 @@
                 <div id="activity-settings-group" class="floating-container" style="bottom: 20px; right: 15px;">
                     <div id="activity-panel" class="pop-out-panel">
                         <div class="text-[10px] font-bold text-gray-400 uppercase">Activity Filter:</div>
-                        <div class="flex items-center justify-between gap-2 mb-1 bg-gray-50 p-1 rounded-md">
-                            <span class="text-[10px] font-bold text-gray-400 ">Alpine Retrospektive:</span>
-                            <select id="year-select" class="w-24 text-sm p-0.5 border rounded font-bold bg-white"></select>
-                        </div>
+						<!-- removed year selector -->
                         <div class="grid grid-cols-6 gap-0.5">
                             <button class="filter-button filter-button-active p-1 text-base" data-activity="ski">❄️</button>
                             <button class="filter-button filter-button-active p-1 text-base" data-activity="hike">🥾</button>
@@ -478,28 +475,22 @@
         }
     }
 
-	/**
+	/**--------------------------------------------------------------
      * Updates the global year filter and refreshes all views
      * @param {string} yr - The selected year (e.g., '2024' or 'All')
-     */
+     *-------------------------------------------------------------*/
 	window.updateActiveYear = function(yr) {
 	    activeYear = yr;
 	    
-	    // 1. Sync the Sidebar (Left)
+	    // Sync the Sidebar (Left)
 	    populateYearSidebar(); 
 	    
-	    // 2. Sync the Map Dropdown (Bottom Right)
-	    const mapDropdown = document.getElementById('year-select');
-	    if (mapDropdown) {
-	        mapDropdown.value = yr;
-	    }
-	    
-	    // 3. Update the Top Nav Label
+	    // Update the Top Nav Label
 	    const isMapVisible = (document.getElementById('map-view').style.display === 'block');
 	    const label = document.getElementById('current-year-label');
 	    label.innerText = `Alpine Retrospektive: ${yr}`;
 	    
-	    // 4. Refresh Data
+	    // Refresh Data
 	    renderPortal(); 
 	    renderMarkers();
 		
@@ -507,11 +498,11 @@
 		if (window.innerWidth <= 768) toggleSidebar();
 	};
 	
-	/**
+	/**-------------------------------------------------------------
      * Within the map view toggle the track button
      * @param url (track)
 	 * @param activityId (id of marker)
-     */
+     *------------------------------------------------------------*/
 	window.toggleTrack = function(url, activityId) {
 	    if (window.currentTrackUrl === url) {
 	        // Already showing this one? Remove it.
@@ -521,13 +512,13 @@
 	        loadTrack(url); 
 	    }
 	    
-	    // IMPORTANT: Tell all markers to update their buttons right now
+	    // Tell all markers to update their buttons right now
 	    refreshAllMarkerPopups();
 	};
 	
- 	/**
+ 	/**------------------------------------------------------------
      * refreshes the button state and regenerate popup-HTML 
-     */
+     *-----------------------------------------------------------*/
 	function refreshAllMarkerPopups() {
 	    map.eachLayer((layer) => {
 	        if (layer instanceof L.Marker && layer.options.activityData) {
@@ -541,9 +532,11 @@
 	    });
 	}
 	
+	//------------------------------------------------------------------
 	// Helper to keep code DRY (Don't Repeat Yourself)
 	// Copy the HTML building logic from createMarker into this function
 	// the buttons and the image and the title and the activity
+	//------------------------------------------------------------------
 	function getPopupHTML(p, idx) {
 	    const rawAct = (p.activity) ? p.activity.toLowerCase().trim() : '';
 	    const isKnown = ICONS_MAP.hasOwnProperty(rawAct);
@@ -599,9 +592,9 @@
 	        </div>`;
 	}
 	
-    /**
+    /**-----------------------------------------------------------------
      * Populates the sidebar with years from the dataset
-     */
+     *----------------------------------------------------------------*/
     function populateYearSidebar() {
         const yrs = ['All', ...new Set(photoMarkers.map(p => p.year.toString()))].sort().reverse();
         const side = document.getElementById('sidebar-years');
@@ -611,9 +604,9 @@
             </div>`).join('');
     }
 
-	/**
+	/**-----------------------------------------------------------------
      * create the HTML for a Portal Grid Cards
-     */
+     *----------------------------------------------------------------*/
 	function createPortalCard(p, idx) {
 	    const rawAct = (p.activity) ? p.activity.toLowerCase().trim() : '';
 	    const displayIcon = ICONS_MAP[rawAct] || '❓';
@@ -656,9 +649,9 @@
 	        </div>`;
 	}
 	
-	/**
+	/**--------------------------------------------------------------------
      * Renders the Portal Grid Cards: in batch mode
-     */
+     *-------------------------------------------------------------------*/
 	function renderPortal() {
 	    const container = document.getElementById('portal-grid');
 	    if (!container) return;
@@ -725,7 +718,7 @@
 	
 	        // --- CASE B: SINGLE POINT (Standard Marker) ---
 	        if (p.lat && p.lon) {
-	            map.flyTo([p.lat, p.lon], 11, { duration: 1.2 });
+	            map.flyTo([p.lat, p.lon], 11, { duration: 1.5 });
 	
 	            map.once('moveend', () => {
 	                let attempts = 0;
@@ -911,7 +904,7 @@
 			// IMMEDIATE MOVE: As soon as THIS specific track is ready
 			if (shouldZoom) {
 				const b = e.target.getBounds();
-				if (b.isValid()) map.flyToBounds(b, { padding: [40, 40] });
+				if (b.isValid()) map.flyToBounds(b, { padding: [50, 50] });
 				else map.flyTo([p.lat, p.lon], 15);
 			}
 			
@@ -1091,7 +1084,7 @@
 		const finalize = () => {
 			processedCount++;
 			if (processedCount === targets.length && runningBounds.isValid()) {
-				map.flyToBounds(runningBounds, { padding: [40, 40], duration: 1.5 });
+				map.flyToBounds(runningBounds, { padding: [50, 50], duration: 1.5 });
 				
 				// OPEN POPUP IF:
 				// 1. It's a Deep Link/Power Search (customMatches exists)
@@ -1145,7 +1138,6 @@
 			const yearMatch = (activeYear === 'All' || p.year.toString() === activeYear);
 			const filterMatch = (activityKey === 'unknown') || activeFilters[activityKey];
 			
-			// --- THE NEPAL & TRIP FIX ---
 			// Only zoom to things that actually have a track to show
 			return yearMatch && filterMatch && p.gpx && p.gpx.length > 5;
 		});
@@ -1156,7 +1148,7 @@
 		const finalizeMasterView = () => {
 			processedCount++;
 			if (processedCount === tracksToProcess.length && runningBounds.isValid()) {
-				map.flyToBounds(runningBounds, { padding: [40, 40], duration: 1.5 });
+				map.flyToBounds(runningBounds, { padding: [50, 50], duration: 1.5 });
 			}
 		};
 
@@ -1177,7 +1169,7 @@
 					if (gb.isValid()) {
 						runningBounds.extend(gb);
 						// Cumulative "stretching" move
-						map.flyToBounds(runningBounds, { padding: [40, 40], duration: 0.8 });
+						map.flyToBounds(runningBounds, { padding: [50, 50], duration: 1.5 }); //0.8 ?
 					}
 					finalizeMasterView();
 				});
@@ -1260,30 +1252,10 @@
 	    }   
 	    processBatch();
 	}
-	
-	/* -------------------------------------------------------------------------
-	 * POPULATE YEAR DROP DOWN on the map
-	 * Function 
-	 --------------------------------------------------------------------------*/		
-	function populateYearDropdown() {
-	    const s = document.getElementById('year-select');
-	    if (!s) return;
-	    
-	    const yrs = ['All', ...new Set(photoMarkers.map(p => p.year.toString()))]
-	                .filter(y => y && y !== "undefined")
-	                .sort().reverse();
-	                
-	    s.innerHTML = '';
-	    yrs.forEach(y => s.add(new Option(y, y)));
-	    
-	    // Set initial value to current activeYear
-	    s.value = activeYear;
 
-		// Use the central sync function
-	    s.onchange = (e) => { window.updateActiveYear(e.target.value); };
-	}
-	
+	//-----------------------------------------
     // MAIN: START EVERYTHING
+	//-----------------------------------------
     loadConfig().then(() => fetchSheetData());
 
 </script>

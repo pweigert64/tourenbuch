@@ -219,7 +219,7 @@
 	    <div class="flex items-center justify-between p-5 border-b md:block">
 			<div class="flex items-center gap-2">
             	<img src="favicon.png" alt="Alpine Logo" class="w-6 h-6 inline-block">
-            	<span class="font-light text-sm tracking-tighter text-slate-400">v0.39</span>
+            	<span class="font-light text-sm tracking-tighter text-slate-400">v0.40</span>
         	</div>
 			<button onclick="toggleSidebar()" class="md:hidden text-2xl">✕</button>
 	    </div>
@@ -674,7 +674,8 @@
 		});
 
 		// Final result passed to Map and Portal views
-		updateView(filtered); 
+		renderMarkers(filtered);
+		renderPortal(filtered); 
 	}
 
     /**
@@ -1054,7 +1055,7 @@
 
 	/* -------------------------------------------------------------------------
 	 * GET FILTERED TOURS filter the photoMarkers
-	 * extracted from rendering. alows deviding loading into ad hoc and batch. 
+	 * extracted from rendering. allows deviding loading into ad hoc and batch. 
 	 --------------------------------------------------------------------------*/
 	function getFilteredTours(targetView = 'map') {
 	    // Standard Filter logic
@@ -1064,7 +1065,7 @@
 	        
 	        const rawAct = p.activity?.toLowerCase().trim();
 	        const activityKey = ICONS_MAP[rawAct] ? rawAct : 'unknown';
-	        const filterMatch = activeFilters[activityKey];
+	        const filterMatch = activeFilters[activityKey];const matchesYear = activeFilters.year === 'All' || p.year.toString() === activeFilters.year.toString();
 	        
 	        return yearMatch && filterMatch;
 	    });
