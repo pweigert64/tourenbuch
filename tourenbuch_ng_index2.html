@@ -221,7 +221,7 @@
 	    <div class="flex items-center justify-between p-5 border-b md:block">
 			<div class="flex items-center gap-2">
             	<img src="favicon.png" alt="favIcon" class="w-6 h-6 inline-block">
-            	<span class="font-light text-[9px] tracking-tighter text-slate-400">vers0.39 </span>
+            	<span class="font-light text-[9px] tracking-tighter text-slate-400">vers0.40 </span>
         	</div>
 			<button onclick="toggleSidebar()" class="md:hidden text-xl">✕</button>
 	    </div>
@@ -459,8 +459,19 @@
         document.getElementById('portal-view').style.display = isMap ? 'none' : 'block';
         document.getElementById('map-view').style.display = isMap ? 'block' : 'none';
         
-        document.getElementById('nav-portal').classList.toggle('opacity-50', isMap);
-        document.getElementById('nav-map').classList.toggle('opacity-50', !isMap);
+        // Portal Button State
+		const portalBtn = document.getElementById('nav-portal');
+		portalBtn.classList.toggle('opacity-50', isMap);
+		portalBtn.classList.toggle('bg-transparent', isMap);
+		portalBtn.classList.toggle('bg-white', !isMap);
+		portalBtn.classList.toggle('shadow-sm', !isMap);
+
+		// Map Button State
+		const mapBtn = document.getElementById('nav-map');
+		mapBtn.classList.toggle('opacity-50', !isMap);
+		mapBtn.classList.toggle('bg-transparent', !isMap);
+		mapBtn.classList.toggle('bg-white', isMap);
+		mapBtn.classList.toggle('shadow-sm', isMap);
 
 		// seems obsolete, but ensures inital setting on refresh (if year not changed)
         const label = document.getElementById('current-year-label');
