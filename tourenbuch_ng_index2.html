@@ -332,6 +332,7 @@
     let map, overviewLayer, detailLayer, hikingLayer, cyclingLayer;
     let photoMarkers = [], currentMarkers = [], allMarkers = [], loadedTracks = {}; 
     let activeFilters = { ski: true, hike: true, climb: true, bike: true, 'bike+hike': true, 'trip': true, 'unknown': true };
+	let activeSearch = '';
     let activeYear = 'All', isInitialLoad = true, switchThreshold = 16; 
     let MAPTILER_KEY, SHEETS_CSV_URL;
 
@@ -520,9 +521,10 @@
 
 	// fire the Text-Search in the Sidebar
 	function handleSearch(val) {
-		activeFilters.search = val;
+		activeSearch = val;
 		filterData(); // This runs the updated filter logic above
 	}
+
 	/**
 	 * Internal helper for general text search
 	 * Checks multiple fields and handles multiple words
@@ -542,21 +544,26 @@
 	}
 
 	function filterData() {
-	const filtered = allToursData.filter(p => {
-		// 1. Year Filter (Replaced activeYear with activeFilters.year)
-		const matchesYear = activeYear === 'All' || p.year === activeYear;
-		if (!matchesYear) return false;
+		const filtered = photoMarkers.filter(p => {
+			// 1. Year Filter 
+			const matchesYear = activeYear === 'All' || p.year === activeYear;
+			if (!matchesYear) return false;
 
-		// 2. Sophisticated Text Search (including tags)
-		if (!matchesGeneralSearch(p, activeFilters.search)) return false;
+			// 2. Sophisticated Text Search (including tags)
+			if (!matchesGeneralSearch(p, activeSearch)) return false;
 
-		// 3. Activity Toggle Logic
-		// 'unknown' ignores toggles, others must be true in activeFilters
-		const isUnknown = p.activity === 'unknown';
-		const isTypeActive = activeFilters[p.activity] === true;
-		
-		return isUnknown || isTypeActive;
-	});
+			// 3. Activity Toggle Logic
+			// 'unknown' ignores toggles, others must be true in activeFilters
+			const isUnknown = p.activity === 'unknown';
+			const isTypeActive = activeFilters[p.activity] === true;
+			
+			return isUnknown || isTypeActive;
+		});
+
+		// Final result passed to Map and Portal views
+		renderMarkers(filtered);
+		renderPortal(filtered); 
+	}
 
 
 	/**--------------------------------------------------------------
@@ -673,7 +680,8 @@
 	                    ${trackBtnText}
 	                </button>
 	            </div>
-	        </div>`;
+	        </div>
+		`;
 	}
 	
     /**-----------------------------------------------------------------
@@ -685,7 +693,8 @@
         side.innerHTML = yrs.map(y => `
             <div class="year-btn ${y === activeYear ? 'active' : ''}" onclick="updateActiveYear('${y}')">
                 ${y}
-            </div>`).join('');
+            </div>
+		`).join('');
     }
 
 	/**-----------------------------------------------------------------
@@ -730,7 +739,8 @@
 	                    </button>
 	                </div>
 	            </div>
-	        </div>`;
+	        </div>
+		`;
 	}
 	
 	/**--------------------------------------------------------------------
@@ -875,8 +885,6 @@
 		});
 	};
 
-
-
 	/* -------------------------------------------------------------------------
 	 * SETUP the view to the first visible Marker. Spot at fixed ZOOM 11
 	 --------------------------------------------------------------------------*/
@@ -916,6 +924,7 @@
 	        }
 	    }, 200);
 	});
+
 	/* -------------------------------------------------------------------------
 	 * SETUP EVENTS assigns the handlefunctions to the defined events.
 	 --------------------------------------------------------------------------*/
@@ -1346,50 +1355,3 @@
 	
 </body>
 </html>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
