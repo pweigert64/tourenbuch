@@ -537,7 +537,9 @@
         }
     }
 
-	// fire the Text-Search in the Sidebar
+	/**
+	 * fire the Text-Search of the top-nav popup
+	 */
 	function handleSearch(val) {
 		activeSearch = val;
 			
@@ -1027,7 +1029,7 @@
 	    let filtered = photoMarkers.filter(p => {
 	        const pYear = p.year.toString();
 	        const yearMatch = (activeYear === 'All' || pYear === activeYear);
-            const searchMatch = matchesGeneralSearch(p, searchStr);
+            const searchMatch = matchesGeneralSearch(p, activeSearch);
 	        const rawAct = p.activity?.toLowerCase().trim();
 	        const activityKey = ICONS_MAP[rawAct] ? rawAct : 'unknown';
 	        const filterMatch = activeFilters[activityKey];
