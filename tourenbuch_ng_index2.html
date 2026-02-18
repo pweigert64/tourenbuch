@@ -232,7 +232,7 @@
     <div id="content-area" class="flex-1 flex flex-col h-screen overflow-hidden">
         <header id="top-nav" class="flex items-center justify-between px-4 h-[60px] border-b shrink-0">
 		 	 <button onclick="toggleSidebar()" class="md:hidden mr-2 text-2xl" title="Menu">☰</button>
-			 <button onclick="toggleSearchPopup()" class="flex items-center gap-2 hover:bg-slate-100 p-1 rounded-lg transition-colors">
+			 <button onclick="toggleSearch()" class="flex items-center gap-2 hover:bg-slate-100 p-1 rounded-lg transition-colors">
 				<span class="text-xl">🔍</span>
 				<div id="current-year-label" class="font-bold text-slate-500 tracking-normal italic"></div>
 			 </button>
@@ -335,7 +335,7 @@
 	let activeSearch = '';
     let activeYear = 'All', isInitialLoad = true, switchThreshold = 16; 
     let MAPTILER_KEY, SHEETS_CSV_URL;
-
+	
 	/* -------------------------------------------------------------------------
 	 * TOGGLE Sidebar (Hamburger Menu)
 	 * -----------------------------------------------------------------------*/
@@ -356,14 +356,16 @@
 	/* -------------------------------------------------------------------------
 	 * TOGGLE Searchbar (sliding in from beneath top-nav)
 	 * -----------------------------------------------------------------------*/
-	function toggleSearchPopup() {
+	function toggleSearch() {
 		const toolbar = document.getElementById('search-toolbar');
-		toolbar.classList.toggle('hidden');
-		
+		toolbar.classList.toggle('hidden'); // toggle on/off
+
+		// if the search box is visible
 		if (!toolbar.classList.contains('hidden')) {
+			// put the focus into the textbox (no need to click it)
 			document.getElementById('tour-search-input').focus();
 		} else {
-			// Optional: Clear search when closing
+			// Clear search when closing
 			document.getElementById('tour-search-input').value = '';
 			handleSearch(''); 
 		}
@@ -480,7 +482,23 @@
         setupEvents();
         renderMarkers();
     }
-
+	
+	/* -------------------------------------------------------------------------
+     * Determine the actual view: portal (Grid) or map (Leaflet)
+     * If nothing is already rendered (within initial fetchSheetData)
+	 * we return the default: portal otherwise it depends on the viaibility
+	 * attribute of the portal-view
+	 * ------------------------------------------------------------------------*/
+	function getCurrentView() {
+	    const portal = document.getElementById('portal-view');
+	    
+		// Check the actual computed style or the inline style
+		if (portal && portal.style.display === 'none') {
+			return 'map';
+		}
+		return 'portal'; // the default for the initial view
+	}
+	
 	/* -------------------------------------------------------------------------
      * Switches between Portal (Grid) and Map (Leaflet)
      * @param {string} view - 'portal' or 'map'
@@ -522,7 +540,15 @@
 	// fire the Text-Search in the Sidebar
 	function handleSearch(val) {
 		activeSearch = val;
-		filterData(); // This runs the updated filter logic above
+			
+		// Use the logic that matches your switchView method
+		const isMapActive = document.getElementById('map-view').style.display === 'block';
+	
+		if (isMapActive) {
+			renderMarkers();
+		} else {
+			renderPortal();
+		}
 	}
 
 	/**
@@ -543,29 +569,6 @@
 		return title.includes(s) || tags.includes(s) || desc.includes(s);
 	}
 
-	function filterData() {
-		const filtered = photoMarkers.filter(p => {
-			// 1. Year Filter 
-			const matchesYear = activeYear === 'All' || p.year === activeYear;
-			if (!matchesYear) return false;
-
-			// 2. Sophisticated Text Search (including tags)
-			if (!matchesGeneralSearch(p, activeSearch)) return false;
-
-			// 3. Activity Toggle Logic
-			// 'unknown' ignores toggles, others must be true in activeFilters
-			const isUnknown = p.activity === 'unknown';
-			const isTypeActive = activeFilters[p.activity] === true;
-			
-			return isUnknown || isTypeActive;
-		});
-
-		// Final result passed to Map and Portal views
-		renderMarkers(filtered);
-		renderPortal(filtered); 
-	}
-
-
 	/**--------------------------------------------------------------
      * Updates the global year filter and refreshes all views
      * @param {string} yr - The selected year (e.g., '2024' or 'All')
@@ -581,9 +584,12 @@
 	    const label = document.getElementById('current-year-label');
 	    label.innerText = `${myTitle}: ${yr}`;
 	    
-	    // Refresh Data
-	    renderPortal(); 
-	    renderMarkers();
+	    // Refresh views
+		if ( isMapVisible ) {
+			renderMarkers();
+		} else {
+	   		renderPortal(); 
+		}
 		
 		// toggle Hamburger when window screen is small
 		if (window.innerWidth <= 768) toggleSidebar();
@@ -1021,12 +1027,12 @@
 	    let filtered = photoMarkers.filter(p => {
 	        const pYear = p.year.toString();
 	        const yearMatch = (activeYear === 'All' || pYear === activeYear);
-	        
+            const searchMatch = matchesGeneralSearch(p, searchStr);
 	        const rawAct = p.activity?.toLowerCase().trim();
 	        const activityKey = ICONS_MAP[rawAct] ? rawAct : 'unknown';
 	        const filterMatch = activeFilters[activityKey];
 	        
-	        return yearMatch && filterMatch;
+	        return yearMatch && searchMatch && filterMatch;
 	    });
 	
 	    if (targetView === 'map') {
@@ -1356,3 +1362,4 @@
 </body>
 
 </html>
+
