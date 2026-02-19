@@ -221,7 +221,7 @@
 	    <div class="flex items-center justify-between p-5 border-b md:block">
 			<div class="flex items-center gap-2">
             	<img src="favicon.png" alt="favIcon" class="w-6 h-6 inline-block">
-            	<span class="font-light text-[9px] tracking-tighter text-slate-400">vers0.40 </span>
+            	<span class="font-light text-[9px] tracking-tighter text-slate-400">vers0.41</span>
         	</div>
 			<button onclick="toggleSidebar()" class="md:hidden text-xl">✕</button>
 	    </div>
@@ -552,20 +552,20 @@
 
 		// 2. If it's "Forced" (Enter key or Go button)
 		if (isForced) {
-			executeSearch(val);
+			executeSearch(val,true); // close the keyboard, de-focus
 			return;
 		}
 
 		// 3. Otherwise, set the "Live Search" timer
 		typingTimer = setTimeout(() => {
-			executeSearch(val);
+			executeSearch(val,false); // do not hide the keyboard & de-focus
 		}, doneTypingInterval);
 	}
 
 	/**
 	 * execute the Text-Search of the top-nav popup
 	 */
-	function executeSearch(val) {
+	function executeSearch(val, shouldBlur) {
 		activeTxtSearch = val;
 			
 		// Use the logic that matches your switchView method
@@ -577,8 +577,11 @@
 			renderPortal();
 		}
 
-		// Hide mobile keyboard if search was triggered by "GO"
-	    document.activeElement.blur();
+		
+		// Only hide keyboard if user explicitly hit Enter/Go
+		if (shouldBlur) {
+			document.activeElement.blur();
+		}
 	}
 
 	/**
