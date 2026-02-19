@@ -232,8 +232,8 @@
     <div id="content-area" class="flex-1 flex flex-col h-screen overflow-hidden">
         <header id="top-nav" class="flex items-center justify-between px-4 h-[60px] border-b shrink-0">
 		 	 <button onclick="toggleSidebar()" class="md:hidden mr-2 text-2xl" title="Menu">☰</button>
-			 <button onclick="toggleSearch()" class="flex items-center gap-2 hover:bg-slate-100 p-1 rounded-lg transition-colors">
-				<span class="text-xl">🔍</span>
+			 <button onclick="toggleTxtSearch()" class="flex items-center gap-2 hover:bg-slate-100 p-1 rounded-lg transition-colors">
+				<span class="text-lg">🔍</span>
 				<div id="current-year-label" class="font-bold text-slate-500 tracking-normal italic"></div>
 			 </button>
              <div class="flex gap-2 bg-gray-100 p-1 rounded-xl">
@@ -242,12 +242,13 @@
              </div>
         </header>
 
-		<div id="search-toolbar" class="hidden bg-white border-b px-4 py-2 flex items-center gap-3 shadow-sm z-[1001]">
-			<input type="text" id="tour-search-input" 
+		<div id="txtSearchToolbar" class="hidden bg-white border-b px-4 py-2 flex items-center gap-3 shadow-sm z-[1001]">
+			<input type="search" id="txtSearchInput" 
 				placeholder="search..." 
 				class="flex-1 p-2 bg-gray-100 rounded-lg outline-none focus:ring-1 focus:ring-slate-300"
-				oninput="handleSearch(this.value)">
-			<button onclick="toggleSearch()" class="text-slate-400 text-sm">close</button>
+				onkeydown="if(event.key==='Enter') handleSearch(this.value, true)"
+				oninput="handleTxtSearch(this.value)">
+			<button class="go-btn" onclick="handleTxtSearch(document.getElementById('txtSearchInput'.value,true)" class="text-slate-400 text-sm">GO</button>
 		</div>
 		<main class="flex-1 overflow-hidden relative">
 			<section id="portal-view">
@@ -332,9 +333,12 @@
     let map, overviewLayer, detailLayer, hikingLayer, cyclingLayer;
     let photoMarkers = [], currentMarkers = [], allMarkers = [], loadedTracks = {}; 
     let activeFilters = { ski: true, hike: true, climb: true, bike: true, 'bike+hike': true, 'trip': true, 'unknown': true };
-	let activeSearch = '';
+	let activeTxtSearch = '';
     let activeYear = 'All', isInitialLoad = true, switchThreshold = 16; 
     let MAPTILER_KEY, SHEETS_CSV_URL;
+	let typingTimer;               // Timer for real-time debounce (hesitate with immediate search)
+    const doneTypingInterval = 400; // Wait 400ms after typing stops
+ 
 	
 	/* -------------------------------------------------------------------------
 	 * TOGGLE Sidebar (Hamburger Menu)
@@ -356,18 +360,18 @@
 	/* -------------------------------------------------------------------------
 	 * TOGGLE Searchbar (sliding in from beneath top-nav)
 	 * -----------------------------------------------------------------------*/
-	function toggleSearch() {
-		const toolbar = document.getElementById('search-toolbar');
+	function toggleTxtSearch() {
+		const toolbar = document.getElementById('txtSearchToolbar');
 		toolbar.classList.toggle('hidden'); // toggle on/off
 
 		// if the search box is visible
 		if (!toolbar.classList.contains('hidden')) {
 			// put the focus into the textbox (no need to click it)
-			document.getElementById('tour-search-input').focus();
+			document.getElementById('txtSearchInput').focus();
 		} else {
 			// Clear search when closing
-			document.getElementById('tour-search-input').value = '';
-			handleSearch(''); 
+			document.getElementById('txtSearchInput').value = '';
+			handleTxtSearch(''); 
 		}
 	}
 
@@ -539,9 +543,30 @@
 
 	/**
 	 * fire the Text-Search of the top-nav popup
+	 * But do not search immediately with each key-stroke
+	 * (check the typingTimer for the lag)
 	 */
-	function handleSearch(val) {
-		activeSearch = val;
+	function handleTxtSearch(val, isForced = false) {
+		// 1. Clear any existing timer
+		clearTimeout(typingTimer);
+
+		// 2. If it's "Forced" (Enter key or Go button)
+		if (isForced) {
+			executeSearch(val);
+			return;
+		}
+
+		// 3. Otherwise, set the "Live Search" timer
+		typingTimer = setTimeout(() => {
+			executeSearch(val);
+		}, doneTypingInterval);
+	}
+
+	/**
+	 * execute the Text-Search of the top-nav popup
+	 */
+	function executeSearch(val) {
+		activeTxtSearch = val;
 			
 		// Use the logic that matches your switchView method
 		const isMapActive = document.getElementById('map-view').style.display === 'block';
@@ -551,13 +576,16 @@
 		} else {
 			renderPortal();
 		}
+
+		// Hide mobile keyboard if search was triggered by "GO"
+	    document.activeElement.blur();
 	}
 
 	/**
 	 * Internal helper for general text search
 	 * Checks multiple fields and handles multiple words
 	 */
-	function matchesGeneralSearch(p, searchStr) {
+	function matchesTxtSearch(p, searchStr) {
 		if (!searchStr || searchStr.trim() === "") return true;
 		
 		const s = searchStr.toLowerCase();
@@ -1029,7 +1057,7 @@
 	    let filtered = photoMarkers.filter(p => {
 	        const pYear = p.year.toString();
 	        const yearMatch = (activeYear === 'All' || pYear === activeYear);
-            const searchMatch = matchesGeneralSearch(p, activeSearch);
+            const searchMatch = matchesTxtSearch(p, activeTxtSearch);
 	        const rawAct = p.activity?.toLowerCase().trim();
 	        const activityKey = ICONS_MAP[rawAct] ? rawAct : 'unknown';
 	        const filterMatch = activeFilters[activityKey];
@@ -1156,69 +1184,6 @@
 
 		// Sync back to the first visible marker in the current sidebar view
 		syncToFirstVisible();
-	};
-	
-	/* -------------------------------------------------------------------------
-	 * APPLY VIEW FILTER translates the selected markers onto the map,
-	 * opens the first popup (leaflet can open only one) and shows all available
-	 * tracks!
-	 --------------------------------------------------------------------------*/
-	window.applyViewFilter = function(customMatches = null, loadTracks = false) {
-		// If we have customMatches (Deep Link), use them. 
-		// Otherwise, use the standard Sidebar filters.
-		const targets = customMatches || photoMarkers.filter((p) => {
-			const rawAct = (p.activity) ? p.activity.toLowerCase().trim() : '';
-			const activityKey = ICONS_MAP.hasOwnProperty(rawAct) ? rawAct : 'unknown';
-			const yearMatch = (activeYear === 'All' || p.year.toString() === activeYear);
-			const filterMatch = (activityKey === 'unknown') || activeFilters[activityKey];
-			return yearMatch && filterMatch;
-		});
-		
-		// CRITICAL: Always clear the map BEFORE starting a new filter/search
-		clearAllTracks();
-
-		if (targets.length === 0) return;
-
-		let runningBounds = L.latLngBounds();
-		let processedCount = 0;
-
-		const finalize = () => {
-			processedCount++;
-			if (processedCount === targets.length && runningBounds.isValid()) {
-				map.flyToBounds(runningBounds, { padding: [50, 50], duration: 1.5 });
-				
-				// OPEN POPUP IF:
-				// 1. It's a Deep Link/Power Search (customMatches exists)
-				// 2. OR it's the Initial Load (Sidebar is "All" and no tracks are loaded yet)
-				const isInitialLoad = !customMatches && activeYear === 'All'; 
-				
-				if (customMatches || isInitialLoad) {
-					const firstMarkerData = targets[0];
-					const firstIdx = photoMarkers.indexOf(firstMarkerData);
-					if (allMarkers[firstIdx]) {
-						// Small delay to let flyToBounds finish so the popup is centered
-						setTimeout(() => allMarkers[firstIdx].openPopup(), 1600);
-					}
-				}
-			}
-		};
-		
-		targets.forEach(p => {
-			const idx = photoMarkers.indexOf(p);
-			runningBounds.extend([p.lat, p.lon]); // include all markers into bounds
-
-			if (loadTracks && p.gpx && p.gpx.length > 5) {
-				const track = loadGpxTrack(idx, false);
-				track.on('loaded', e => {
-					const gb = e.target.getBounds();
-					if (gb.isValid()) runningBounds.extend(gb);
-					finalize();
-				});
-				track.on('error', finalize);
-			} else {
-				finalize();
-			}
-		});
 	};
 	
 	/* -------------------------------------------------------------------------
