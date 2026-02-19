@@ -221,7 +221,7 @@
 	    <div class="flex items-center justify-between p-5 border-b md:block">
 			<div class="flex items-center gap-2">
             	<img src="favicon.png" alt="favIcon" class="w-6 h-6 inline-block">
-            	<span class="font-light text-[9px] tracking-tighter text-slate-400">vers0.41</span>
+            	<span class="font-light text-[9px] tracking-tighter text-slate-400">vers0.42</span>
         	</div>
 			<button onclick="toggleSidebar()" class="md:hidden text-xl">✕</button>
 	    </div>
@@ -248,7 +248,7 @@
 				class="flex-1 p-2 bg-gray-100 rounded-lg outline-none focus:ring-1 focus:ring-slate-300"
 				onkeydown="if(event.key==='Enter') handleSearch(this.value, true)"
 				oninput="handleTxtSearch(this.value)">
-			<button class="go-btn" onclick="handleTxtSearch(document.getElementById('txtSearchInput'.value,true)" class="text-slate-400 text-sm">GO</button>
+			<button class="go-btn" onclick="handleTxtSearch(document.getElementById('txtSearchInput'.value,true))" class="text-slate-400 text-sm">GO</button>
 		</div>
 		<main class="flex-1 overflow-hidden relative">
 			<section id="portal-view">
@@ -337,7 +337,7 @@
     let activeYear = 'All', isInitialLoad = true, switchThreshold = 16; 
     let MAPTILER_KEY, SHEETS_CSV_URL;
 	let typingTimer;               // Timer for real-time debounce (hesitate with immediate search)
-    const doneTypingInterval = 750; // Wait ###ms after typing stops
+    const doneTypingInterval = 1200; // Wait ###ms after typing stops
  
 	
 	/* -------------------------------------------------------------------------
