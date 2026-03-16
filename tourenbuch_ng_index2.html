@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="de">
 <head>
@@ -131,8 +130,9 @@
 
         /* Marker & Popup Styles */
         .emoji-marker-outer { width: 26px!important; height: 26px!important; border-radius: 50%; border: 2px solid white; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 5px rgba(0,0,0,0.2); }
-        .marker-ski { background: #4f46e5; } .marker-hike { background: #b54708; } .marker-climb { background: #dc2626; } 
-        .marker-bike { background: #065f46; } .marker-bike-hike { background: #f97316; } .marker-trip { background: #9333ea; } 
+        .marker-ski { background: #9333ea; } .marker-piste { background: #4f46e5; } 
+		.marker-hike { background: #b54708; } .marker-climb { background: #eb1911d8; } .marker-rope { background: #d80303; } 
+        .marker-bike { background: #065f46; } .marker-bike-hike { background: #f97316; } .marker-trip { background: #928cfa; } 
         .marker-unknown { background: #6b7280; }
         .emoji-marker-inner { font-size: 11pt; background: white; border-radius: 50%; width: 18px; height: 18px; display: flex; align-items: center; justify-content: center; }
         .filter-button { padding: 8px; font-size: 0.75rem; font-weight: 700; border-radius: 8px; cursor: pointer; border: 1px solid #d1d5db; text-align: center; width: 100%; }
@@ -273,7 +273,7 @@
 								<input type="range" id="threshold-slider" min="1" max="17" value="16" step="1" class="w-full">
 							</div>
 							<div class="grid grid-cols-2 gap-2 mt-1">
-								<button id="hike-layer-btn" class="filter-button bg-white text-[9px] py-2">🏔️ HIKE</button>
+								<button id="hike-layer-btn" class="filter-button bg-white text-[9px] py-2">🥾 HIKE</button>
 								<button id="bike-layer-btn" class="filter-button bg-white text-[9px] py-2">🚲 MTB</button>
 							</div>
 						</div>
@@ -283,10 +283,12 @@
 						<div id="activity-panel" class="pop-out-panel">
 							<div class="text-[10px] font-bold text-gray-400 uppercase">Activity Filter:</div>
 							<!-- removed year selector -->
-							<div class="grid grid-cols-6 gap-0.5">
+							<div class="grid grid-cols-8 gap-0.5">
 								<button class="filter-button filter-button-active p-1 text-base" data-activity="ski">❄️</button>
+								<button class="filter-button filter-button-active p-1 text-base" data-activity="piste">🚠</button>
 								<button class="filter-button filter-button-active p-1 text-base" data-activity="hike">🥾</button>
 								<button class="filter-button filter-button-active p-1 text-base" data-activity="climb">⛰️</button>
+								<button class="filter-button filter-button-active p-1 text-base" data-activity="rope">🪢</button>
 								<button class="filter-button filter-button-active p-1 text-base" data-activity="bike">🚴</button>
 								<button class="filter-button filter-button-active p-1 text-base" data-activity="bike+hike">🚵</button>
 								<button class="filter-button filter-button-active p-1 text-base" data-activity="trip">🏛️</button>
@@ -328,12 +330,12 @@
         'bike': '#065f46', 'bike+hike': '#f97316', 'trip': '#9333ea', 'unknown': '#6b7280' 
     };
     const ICONS_MAP = { 
-        'ski': '❄️', 'hike': '🥾', 'climb': '⛰️', 'bike': '🚴', 'bike+hike': '🚵', 'trip': '🏛️' 
+        'ski': '❄️', 'piste': '🚠', 'hike': '🥾', 'climb': '⛰️', 'rope': '🪢', 'bike': '🚴', 'bike+hike': '🚵', 'trip': '🏛️' 
     };
 
     let map, overviewLayer, detailLayer, hikingLayer, cyclingLayer;
     let photoMarkers = [], currentMarkers = [], allMarkers = [], loadedTracks = {}; 
-    let activeFilters = { ski: true, hike: true, climb: true, bike: true, 'bike+hike': true, 'trip': true, 'unknown': true };
+    let activeFilters = { ski: true, piste: true, hike: true, climb: true, rope: true, bike: true, 'bike+hike': true, trip: true, unknown: true };
 	let activeTxtSearch = '';
     let activeYear = 'All', isInitialLoad = true, switchThreshold = 16; 
     let MAPTILER_KEY, SHEETS_CSV_URL;
@@ -756,12 +758,16 @@
 	    const isCollection = (!p.lat || !p.lon) && hasAlbum; 
 	    
 	    const canShowOnMap = hasLocation || isCollection;
-	
+		
+		// <div class="relative aspect-video bg-gray-200 cursor-pointer" onclick="jumpToMap(${idx})">
+	    //    <img src="${ASSET_BASE}/${p.year}/img/${p.img}" class="w-full h-full object-cover" loading="lazy" onerror="this.style.display='none'">
+	    // </div>
 	    return `
-	        <div class="bg-white rounded-2xl shadow-sm overflow-hidden flex flex-col h-full hover:shadow-md transition-all border border-gray-100">
-	            <div class="relative aspect-video bg-gray-200 cursor-pointer" onclick="jumpToMap(${idx})">
-	                <img src="${ASSET_BASE}/${p.year}/img/${p.img}" class="w-full h-full object-cover" loading="lazy" onerror="this.style.display='none'">
-	            </div>
+	        <div class="bg-white shadow-sm overflow-hidden flex flex-col h-full hover:shadow-md transition-all border border-gray-100">
+				<div class="portal-img-container cursor-pointer" onclick="jumpToMap(${idx})">
+					<img src="${ASSET_BASE}/${p.year}/img/${p.img}" 
+						class="w-full h-full object-cover" loading="lazy" onerror="this.style.display='none'">
+				</div>
 	            
 	            <div class="p-3 flex flex-col flex-grow">
 	                <h3 class="font-bold text-gray-900 leading-tight mb-1 text-sm line-clamp-2">${p.title}</h3>
@@ -1029,7 +1035,7 @@
 		}).on('loaded', e => {
 			e.target.eachLayer(layer => {
 				if (layer instanceof L.Polyline) {
-					let dashPattern = p.activity === 'ski' ? '2, 12' : (p.activity === 'hike' || p.activity === 'climb' ? '10, 10' : '20, 5');
+					let dashPattern = p.activity === 'ski' ? '2, 12' : (p.activity === 'hike' || p.activity === 'climb' || p.activity === 'rope' ? '10, 10' : '20, 5');
 					L.polyline(layer.getLatLngs(), { color: '#FFFFFF', weight: 2, opacity: 0.8, dashArray: dashPattern, lineCap: 'round', interactive: false }).addTo(trackGroup);
 				}
 			});
