@@ -1157,7 +1157,7 @@
 	function handleDeepLink() {
 	    const urlParams = new URLSearchParams(window.location.search);
 	    const query = urlParams.get('s')?.toLowerCase();
-	    if (!query) return;
+	    if (!query) return false; // no deepLink-query
 	
 	    // 1. Search (Modular Filter)
 	    const matches = photoMarkers.filter(p => {
@@ -1188,7 +1188,9 @@
 	        } else {
 	            map.flyToBounds(bounds, { padding: [50, 50] });
 	        }
+			return true; // link found
 	    }
+		return false; // no match for link
 	}
 	
 	/* -------------------------------------------------------------------------
@@ -1345,16 +1347,20 @@
 	//-----------------------------------------
     // MAIN: START EVERYTHING
 	//-----------------------------------------
-    loadConfig()
+	// MAIN: START EVERYTHING
+	loadConfig()
     .then(() => fetchSheetData())
-    .then((success) => {
-        if (success) {
-            console.log("Data successfully loaded.Check for Deep-Link...");
-            handleDeepLink();
+    .then(() => {
+        const foundSomething = handleDeepLink(); 
+        
+        if (!foundSomething) {
+			console.log("no DeepLink or nothing found via DeepLink!");
+            // force Portal only if nothing found by deepLink
+            switchView('portal');
+        } else {
+            console.log("Deep-Link successful!");
         }
-    })
-    .catch(err => console.error("Critical startup error:", err));
-
+    });
 </script>
 	
 </body>
