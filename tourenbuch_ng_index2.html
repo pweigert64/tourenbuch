@@ -442,7 +442,17 @@
                                 .sort((a, b) => b - a);
             
             if (isInitialLoad) {
-                activeYear = yearsInData.length > 0 ? yearsInData[0] : 'All';
+				const urlParams = new URLSearchParams(window.location.search);
+				const hasDeepLink = urlParams.has('s') || urlParams.has('title'); // Prüft beide Varianten
+
+				if (hasDeepLink) {
+					// Wenn wir einen Deep-Link haben, zeigen wir ALLES an, 
+					// damit die Suche den Marker sicher findet
+					activeYear = 'All'; 
+				} else {
+					// Normaler Start: Das neueste Jahr nehmen
+					activeYear = yearsInData.length > 0 ? yearsInData[0] : 'All';
+				}
             }
 
             if (!map) {
@@ -1155,8 +1165,9 @@
 	        const activityMatch = p.activity?.toLowerCase().includes(query);
 	        return titleMatch || activityMatch;
 	    });
-	
-	    if (matches.length > 0) {
+
+		if (matches.length > 0) {
+			switchView('map'); // Switch from Portal to map to make markers visible!
 	        const bounds = L.latLngBounds();
 	        
 	        matches.forEach(p => {
@@ -1334,7 +1345,15 @@
 	//-----------------------------------------
     // MAIN: START EVERYTHING
 	//-----------------------------------------
-    loadConfig().then(() => fetchSheetData());
+    loadConfig()
+    .then(() => fetchSheetData())
+    .then((success) => {
+        if (success) {
+            console.log("Data successfully loaded.Check for Deep-Link...");
+            handleDeepLink();
+        }
+    })
+    .catch(err => console.error("Critical startup error:", err));
 
 </script>
 	
